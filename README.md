@@ -1,16 +1,61 @@
-# Tabula Rasa AI
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ████████╗ █████╗ ██████╗ ██╗   ██╗██╗      █████╗         ║
+║   ╚══██╔══╝██╔══██╗██╔══██╗██║   ██║██║     ██╔══██╗        ║
+║      ██║   ███████║██████╔╝██║   ██║██║     ███████║        ║
+║      ██║   ██╔══██║██╔══██╗██║   ██║██║     ██╔══██║        ║
+║      ██║   ██║  ██║██████╔╝╚██████╔╝███████╗██║  ██║        ║
+║      ╚═╝   ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝        ║
+║                                                              ║
+║   ██████╗  █████╗ ███████╗ █████╗                           ║
+║   ██╔══██╗██╔══██╗██╔════╝██╔══██╗                          ║
+║   ██████╔╝███████║███████╗███████║                          ║
+║   ██╔══██╗██╔══██║╚════██║██╔══██║                          ║
+║   ██║  ██║██║  ██║███████║██║  ██║                          ║
+║   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                          ║
+║                                                              ║
+║   Learning from scratch, one specialist at a time.           ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
 
-**Learning from scratch, one specialist at a time.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Paper](https://img.shields.io/badge/Paper-Whitepaper-red.svg)](whitepaper.md)
+[![Telegram](https://img.shields.io/badge/Telegram-Join-blue.svg)](https://t.me/TabulaRasaAi)
 
 Tabula Rasa is an experimental AI system that trains small transformer models from a blank slate. Currently in **Phase 1**: proving single-task arithmetic mastery before adding continual learning.
 
-```
+---
+
+## Five-Minute Quickstart
+
+```bash
+# 1. Install dependencies
 pip install torch numpy tqdm
-python3 train_specialist.py add
-python3 api_server.py
+
+# 2. Train your first specialist (smoke test — ~2 minutes on CPU)
+python train_specialist.py add --quick
+
+# 3. Start the API + dashboard
+python api_server.py
+
+# 4. Open http://localhost:8000 — your dashboard is live!
 ```
 
-Then open http://localhost:8000
+That's it. The model learns 1-digit addition from scratch in ~500 steps. For full training (30K steps, ~25 min on CPU):
+
+```bash
+python train_specialist.py add
+```
+
+Then query via the API:
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"12+34="}'
+# Result: {"result": "46", "specialist": "add", ...}
+```
 
 ---
 
@@ -21,6 +66,8 @@ Then open http://localhost:8000
 | **1** | Arithmetic Specialist — single-task mastery | ✅ **COMPLETE** |
 | **2** | Continual Learning — Online EWC + multi-specialist | ✅ **COMPLETE** |
 | **3** | Reasoning — Socratic Engine, self-play | ❌ **FUTURE** |
+
+> **Detailed roadmap:** [ROADMAP.md](ROADMAP.md)
 
 ---
 
@@ -39,9 +86,9 @@ Then open http://localhost:8000
 
 | Claim | Result | Evidence |
 |-------|--------|----------|
-| 100% 1-digit addition in ≤4K steps | **100% in 3K steps** | `RESULTS.md` |
+| 100% 1-digit addition in ≤4K steps | **100% in 3K steps** | [RESULTS.md](RESULTS.md) |
 | Fused carry-digit tokens (00-19) | **20 tokens in vocab** (IDs 4-23) | `tokenizer.py` |
-| Online EWC Fisher Matrix | **✅ IMPLEMENTED & VALIDATED** | `RESULTS.md §2B` |
+| Online EWC Fisher Matrix | **✅ IMPLEMENTED & VALIDATED** | [RESULTS.md](RESULTS.md#2b-sequential-task-retention-validation) |
 
 ### What the architecture proves
 
@@ -72,15 +119,17 @@ The system now learns sequential tasks without catastrophic forgetting, using **
 
 **Key finding:** Online EWC not only prevents forgetting — it improves old-task accuracy through implicit regularization. The consolidated weight space is a better local minimum than the original isolated training.
 
-See `RESULTS.md` for the full scientific analysis, including the ablation roadmap.
+See [RESULTS.md](RESULTS.md) for the full scientific analysis, including the ablation studies.
 
 ## Phase 3: Reasoning (FUTURE)
 
-- [ ] Socratic Engine (dialectical self-play)
-- [ ] Language AlphaZero
-- [ ] Code AlphaZero
+- [ ] Socratic Engine (dialectical self-play) — prototypes exist in `egefalos/socratic_stage*.py`
+- [ ] Language AlphaZero — framework exists in `egefalos/language_az.py`
+- [ ] Code AlphaZero — framework exists in `egefalos/code_specialist.py`
 
-## Architecture (Phase 1)
+Detailed tasks: [ROADMAP.md](ROADMAP.md#phase-3-reasoning-future)
+
+## Architecture
 
 | Component | File | Purpose |
 |-----------|------|---------|
@@ -118,28 +167,34 @@ tqdm>=4.60.0
 ### Train a specialist
 
 ```bash
-python3 train_specialist.py add        # Train addition (3K steps to 100% 1-digit)
-python3 train_specialist.py sub        # Train subtraction
-python3 train_specialist.py mul        # Train multiplication
-python3 train_specialist.py div        # Train division
-python3 train_specialist.py all        # All four operations
-python3 train_specialist.py add --quick  # Smoke test (500 steps)
-python3 train_specialist.py add --resume # Resume from checkpoint
+python train_specialist.py add        # Train addition (3K steps to 100% 1-digit)
+python train_specialist.py sub        # Train subtraction
+python train_specialist.py mul        # Train multiplication
+python train_specialist.py div        # Train division
+python train_specialist.py all        # All four operations
+python train_specialist.py add --quick  # Smoke test (500 steps)
+python train_specialist.py add --resume # Resume from checkpoint
+```
+
+Train with **continual learning** (EWC):
+```bash
+python train_specialist.py sub --ewc          # Preserve addition while learning subtraction
+python train_specialist.py mul --ewc           # Preserve add+sub while learning multiplication
 ```
 
 ### Auto-train (autonomous loop)
 
 ```bash
-python3 auto_train.py                      # Train weakest until all ≥50%
-python3 auto_train.py --target 70          # Higher bar
-python3 auto_train.py --budget 10000       # 10K step budget
-python3 auto_train.py --ops add sub        # Only add + sub
+python auto_train.py                      # Train weakest until all ≥50%
+python auto_train.py --target 70          # Higher bar
+python auto_train.py --budget 10000       # 10K step budget
+python auto_train.py --ops add sub        # Only add + sub
 ```
 
 ### Start the dashboard
 
 ```bash
-python3 api_server.py          # API on port 8000
+python api_server.py          # API on port 8000
 ```
 
 Open http://localhost:8000
@@ -179,7 +234,6 @@ d_ff = 512              # Feed-forward hidden dim
 dropout = 0.1           # Dropout rate
 learning_rate = 0.001   # Peak LR
 batch_size = 32         # Batch size
-max_digits = 4          # Max digits per operand
 use_curriculum = True   # Curriculum learning
 use_reversed = True     # Reverse digits for carry alignment
 use_loss_masking = True # Ignore prompt/pad in loss
@@ -208,35 +262,56 @@ use_loss_masking = True # Ignore prompt/pad in loss
 
 ```
 tabula-rasa/
-├── api_server.py          # REST API + dashboard host
-├── auto_train.py          # Autonomous training loop
-├── model.py               # Transformer model
-├── train_specialist.py    # Specialist trainer
-├── tokenizer.py           # Math tokenizer (carry-digit tokens)
-├── config.py              # All hyperparameters
-├── dataset.py             # Problem generation
-├── eval.py                # Standalone evaluation
-├── generate.py            # Standalone inference
+├── api_server.py              # REST API + dashboard host
+├── auto_train.py              # Autonomous training loop
+├── model.py                   # Transformer model
+├── train_specialist.py        # Specialist trainer (+ EWC)
+├── tokenizer.py               # Math tokenizer (carry-digit tokens)
+├── config.py                  # All hyperparameters
+├── dataset.py                 # Problem generation
+├── eval.py                    # Standalone evaluation
+├── generate.py                # Standalone inference
 │
-├── egefalos/              # Developmental system (in development)
-│   ├── tabula_rasa.py     # Main entry point
-│   ├── piaget/            # Piagetian stages
-│   ├── sleep_cycle.py     # Consolidation (planned)
-│   └── mcts.py            # Monte Carlo Tree Search
+├── egefalos/                  # Developmental system
+│   ├── tabula_rasa.py         # Main entry point
+│   ├── sleep_cycle.py         # Consolidation daemon (implemented)
+│   ├── mcts.py                # Monte Carlo Tree Search (implemented)
+│   ├── online_ewc.py          # Online Elastic Weight Consolidation
+│   ├── hippocampus.py         # SQLite experience replay
+│   ├── neocortex.py           # Neocortex module
+│   ├── socratic_stage1.py     # Socratic dialogue (stage 1)
+│   ├── socratic_stage2.py     # Socratic dialogue (stage 2)
+│   ├── socratic_stage3.py     # Socratic dialogue (stage 3)
+│   ├── language_az.py         # Language AlphaZero framework
+│   ├── code_specialist.py     # Code AlphaZero framework
+│   └── piaget/                # Piagetian stages
 │
-├── Dashboard/             # Web UI (25+ views)
-├── specialist_network.py  # Specialist lifecycle management
-├── specialist_router.py   # Query routing
-├── serve.py               # Dashboard server
-├── self_improve.py        # Self-play loop
+├── Dashboard/                 # Web UI (25+ views)
+│   └── views/                 # Dashboard view templates
 │
-├── start_tabula_rasa.bat  # Windows launcher
-├── requirements.txt       # Dependencies
-├── whitepaper.md          # Technical whitepaper
-├── RESULTS.md             # Validation results
-└── README.md              # This file
+├── experiments/               # Experiment runners + results
+│   ├── run_ablation_no_ewc.py
+│   ├── run_ablation_lambda_sweep.py
+│   ├── run_ablation_three_task.py
+│   └── ...
+│
+├── specialist_network.py      # Specialist lifecycle management
+├── specialist_router.py       # Query routing
+├── serve.py                   # Dashboard server
+├── self_improve.py            # Self-play loop
+│
+├── start_tabula_rasa.bat      # Windows launcher
+├── requirements.txt           # Dependencies
+├── whitepaper.md              # Technical whitepaper
+├── RESULTS.md                 # Validation results
+├── ROADMAP.md                 # Project roadmap
+├── CONTRIBUTING.md            # Developer's guide
+├── CONTRIBUTING_EXTENDING.md  # Tutorial: adding new operations
+├── CODE_OF_CONDUCT.md         # Contributor covenant
+├── LICENSE                    # MIT license
+└── README.md                  # This file
 ```
 
 ---
 
-[GitHub](https://github.com/tabula-rasa-ai/tabula-rasa) • [Telegram](https://t.me/TabulaRasaAi) • [Whitepaper](whitepaper.md) • [Results](RESULTS.md)
+[GitHub](https://github.com/tabula-rasa-ai/tabula-rasa) • [Telegram](https://t.me/TabulaRasaAi) • [Whitepaper](whitepaper.md) • [Results](RESULTS.md) • [Roadmap](ROADMAP.md) • [Contributing](CONTRIBUTING.md)

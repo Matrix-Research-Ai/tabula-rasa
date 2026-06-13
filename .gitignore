@@ -21,6 +21,10 @@ memory/
 self_train/
 scripts/
 
+# Large files
+*.zip
+*.pt
+
 # Logs
 *.log
 startup_debug.log
@@ -43,8 +47,18 @@ registry.json
 training.log
 error.log
 
-# Large zip files
-*.zip
-
 # Temporary
 ablation_batch.log
+
+# Generated paper files
+paper.html
+paper_draft.md
+paper.tex
+
+# Release scripts
+create_release.py
+upload_assets.py
+
+# Experiment checkpoints
+experiments/ewc_*.pt
+experiments/ewc_test/
