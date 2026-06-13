@@ -1,9 +1,5 @@
 # Online Elastic Weight Consolidation: Empirical Validation on Arithmetic Continual Learning
 
-> Paper draft — Tabula Rasa AI project
-> Status: Structure + Results sections (in progress)
-> Lambda sweep running; three-task validation ready
-
 ---
 
 ## Abstract
@@ -150,7 +146,7 @@ Epoch  20:   80%
 Epoch  25:   98%  ← smooth, monotonic convergence
 ```
 
-**[FIGURE 1: stability_comparison.png — side-by-side trajectories]**
+![Figure 1: Training trajectories for addition accuracy during subtraction learning. Left: Without EWC, addition collapses to 18% at epoch 3 (both tasks die simultaneously), then chaotically recovers. Right: With EWC, addition improves smoothly from 58% to 98% with zero collapses.](experiments/stability_comparison.png)
 
 *Figure 1: Training trajectories for addition accuracy during subtraction learning. **Left:** Without EWC, addition collapses to 18% at epoch 3 (both tasks die simultaneously), then chaotically recovers. **Right:** With EWC, addition improves smoothly from 58% to 98% with zero collapses.*
 
@@ -174,9 +170,9 @@ Recovery occurs not through retention but through re-learning: the model re-enco
 
 *Table 2: Lambda sweep results. All λ ≥ 500 achieve perfect retention and learning. Addition accuracy improves at higher λ values, indicating beneficial regularization.*
 
-**[FIGURE 2: lambda_sweep_pareto.png — two-panel plot]**
+![Figure 2: Lambda robustness. Left: Individual accuracy curves. The frontier is flat — all λ ≥ 500 achieve 100% on both tasks. Right: Pareto frontier. The upper-right corner (100, 100) is reached for λ ≥ 500.](experiments/lambda_sweep_pareto.png)
 
-*Figure 2: Lambda robustness. **Left:** Individual accuracy curves. The frontier is flat — all λ ≥ 500 achieve 100% on both tasks. **Right:** Pareto frontier. The upper-right corner (100, 100) is reached for λ ≥ 500.*
+*Figure 2: Lambda robustness. **Left:** Individual accuracy curves. The frontier is flat — all λ ≥ 500 achieve 100% on both tasks. **Right:** Pareto frontier. The upper-right corner (100, 100) is reached for λ ≥ 500. The Pareto frontier is perfectly flat across a 20x λ range.*
 
 This flat frontier is unexpected. Standard EWC theory predicts a visible trade-off: higher λ protects old tasks but slows new-task learning. Instead, we find that λ=100 (weakest protection) and λ=2000 (strongest) produce nearly identical results, with λ ≥ 500 achieving perfect performance on both tasks.
 
@@ -208,6 +204,10 @@ Epoch   7: add=0%,  sub=0%,  mul=52%
 Epoch  15: add=0%,  sub=0%,  mul=62%  ← mul peak
 Epoch  19: add=4%,  sub=0%,  mul=42%  ← ends poorly
 ```
+
+![Figure 3: Three-task scalability. Left: Accuracy per task after each sequential step. Addition and subtraction collapse to near-zero during multiplication training. Right: Fisher norm shrinks from 2.35 to 2.19 (6% loss) during merge.](experiments/three_task_scalability.png)
+
+*Figure 3: Scalability boundary at 3 tasks. Addition and subtraction both collapse within one epoch of multiplication training. Fisher norm decreases during merge, indicating information loss rather than constraint accumulation.*
 
 The collapse is immediate and synchronized — both addition (8%) and subtraction (4%) drop in the first epoch of multiplication training. Unlike standard catastrophic forgetting (where both tasks collapse simultaneously due to gradient interference), this collapse occurs even with the EWC penalty in place, suggesting the protection mechanism itself is insufficient.
 
@@ -267,13 +267,13 @@ The flat Pareto frontier (Section 3.3) suggests that for two arithmetic tasks, t
 
 These findings suggest that EWC's benefits are most pronounced when tasks share structure (regularization, stability) and least necessary when tasks are trivially separable (sufficient capacity). The critical question is: **at what task count do constraints become binding?**
 
-### 4.4 When Does the Frontier Bend?
+### 4.3 When Does the Frontier Bend?
 
 The three-task experiment (§3.4) answers this definitively: the frontier bends at **3 structurally distinct tasks**. Addition and subtraction share computational structure (carry logic, digit encoding, reversed alignment) and the merged Fisher preserves this shared information. Multiplication is structurally different — no carry propagation, distinct parameter usage — and the merged Fisher fails to protect against its gradients.
 
 The root cause is **information loss during merge**, evidenced by the Fisher norm shrinking from 2.35 to 2.19 (a 6% decrease). The exponential decay operator (γ=0.9) is effective when tasks share structure (add+sub: norm stable), but when merging a divergent task, the decay discards more task-specific information than it preserves.
 
-### 4.5 Implications for Continual Learning
+### 4.4 Implications for Continual Learning
 
 Standard EWC requires careful λ tuning — too low and catastrophic forgetting occurs, too high and new learning stalls. Our findings suggest that for well-structured task domains (arithmetic, structured languages, etc.), Online EWC provides a wider "safe zone" of λ values where both old and new tasks improve simultaneously.
 
@@ -360,7 +360,7 @@ A system with stable trajectories is preferable even at the same final accuracy,
 
 ---
 
-## 5. Related Work
+## 6. Related Work
 
 **Elastic Weight Consolidation.** Kirkpatrick et al. (2017) introduced EWC for deep neural networks, demonstrating that Fisher information can identify task-critical parameters. Schwarz et al. (2018) extended this to the online setting, proposing merged Fisher matrices for sequential tasks. Our work validates the online variant empirically.
 
@@ -372,7 +372,7 @@ A system with stable trajectories is preferable even at the same final accuracy,
 
 ---
 
-## 6. Conclusion
+## 7. Conclusion
 
 We empirically validated Online Elastic Weight Consolidation for sequential arithmetic continual learning. Our key findings are:
 
