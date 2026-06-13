@@ -28,10 +28,11 @@ from tabula_rasa.dataset import generate_problem
 # ─── Constants ───────────────────────────────────────────────────────
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 SEED = 42
-N_PROBLEMS = 200              # Problems for evaluation
-N_SOCRATIC_ROUNDS = 5         # Dialogue rounds per problem
-N_SOCRATIC_PROBLEMS = 100     # Problems to run Socratic dialogue on
-N_FINETUNE_EPOCHS = 3         # Fine-tuning epochs on Socratic data
+N_BASELINE_STEPS = 500           # Quick-mode baseline (2000 for full)
+N_PROBLEMS = 100              # Problems for evaluation
+N_SOCRATIC_ROUNDS = 3         # Dialogue rounds per problem
+N_SOCRATIC_PROBLEMS = 50      # Problems to run Socratic dialogue on
+N_FINETUNE_EPOCHS = 2         # Fine-tuning epochs on Socratic data
 BASELINE_DIR = Path('specialists') / 'socratic_baseline'
 OUTPUT_PATH = Path('experiments') / 'socratic_training_results.json'
 
@@ -104,10 +105,9 @@ def evaluate_accuracy(model, tok, num_problems=N_PROBLEMS, max_digits=4,
 
 # ─── Step 1: Train baseline model ────────────────────────────────────
 
-def train_baseline(tok, steps=2000):
-    """Train a model on addition problems from scratch."""
-    print('\n' + '=' * 60)
-    print('  Step 1: Training Baseline Model (addition, 2000 steps)')
+def train_baseline(tok, steps=N_BASELINE_STEPS):
+    """Train a baseline addition model from scratch."""
+    print(f'  Step 1: Training Baseline Model (addition, {steps} steps)')
     print('=' * 60)
 
     model, cfg = make_model(tok, {
