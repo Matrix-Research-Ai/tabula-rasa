@@ -322,10 +322,10 @@ after subtraction training across 3 random seeds, compared to
 64.0±55.4\% without EWC --- a decisive advantage.
 
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2105}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2632}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.3421}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1842}}@{}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1379}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.1724}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.2241}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 6\tabcolsep) * \real{0.4655}}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 Metric
@@ -334,25 +334,31 @@ With EWC
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Without EWC
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Delta
+Difference (EWC − No-EWC)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Addition baseline & 83.0\% (single run) & 96.7±2.1\% (3 seeds) & --- \\
+Addition baseline & 83.0\%* & 96.7±2.1\% (3 seeds) & --- \\
 Addition after subtraction & \textbf{100.0±0.0\%} & \textbf{64.0±55.4\%}
 & \textbf{+36.0pp} \\
 Subtraction acquired & \textbf{100.0±0.0\%} & \textbf{65.3±48.0\%} &
 \textbf{+34.7pp} \\
 Retention drop & \textbf{−2.3±2.1 pp} (improved) & \textbf{+32.7±54.9
-pp} & \textbf{+35.0pp} \\
+pp} & \textbf{−35.0pp} \\
 \end{longtable}
 
 \emph{Table 1: Online EWC vs.~No-EWC control (mean ± std, 3 seeds). EWC
 achieves 100\% on both tasks with zero variance. Without EWC, the
 outcome is bimodal: seeds produce either 0\% (permanent collapse) or
 96\% (partial recovery). EWC eliminates this stochasticity entirely.}
+
+\emph{Note: The EWC baseline (83.0\%) is from a single earlier run with
+different random seed and curriculum configuration; the within-study
+comparison uses matched baselines per condition. The primary comparison
+is post-subtraction retention, where both conditions use identical
+evaluation.}
 
 The zero variance of the EWC condition is notable: across all 3 seeds,
 addition retention and subtraction acquisition both hit exactly 100\%.
@@ -579,11 +585,15 @@ adaptive --- can overcome a fundamental capacity bottleneck.
 \textbf{Validated negative result: Adaptive Gamma.} We implemented
 adaptive gamma, which scales the merge decay rate based on Fisher
 overlap between tasks (γ\_adaptive = base·overlap + min·(1−overlap)).
-The measured overlap between addition and subtraction was 0.977,
-producing γ\_adaptive=0.886 (near-identical to the default 0.9).
-Three-task performance was unchanged (Add: 0\%, Sub: 5\%, Mul: 37\%).
-This confirms that task divergence is not the limiting factor --- the
-bottleneck is capacity, not the merge operator.
+Overlap is measured as cosine similarity between flattened Fisher
+vectors: cos(F\_old, F\_new) = (F\_old·F\_new) / (‖F\_old‖·‖F\_new‖),
+where each Fisher is flattened into a single vector of parameter-wise
+importance estimates. The measured overlap between addition and
+subtraction was 0.977 (near-identical, indicating nearly identical
+parameter importance patterns), producing γ\_adaptive=0.886. Three-task
+performance was unchanged (Add: 0\%, Sub: 5\%, Mul: 37\%). This confirms
+that task divergence is not the limiting factor --- the bottleneck is
+capacity, not the merge operator.
 
 \textbf{Conclusion: Online EWC is validated as optimal for up to 2
 structurally similar tasks. The scalability boundary at 3 structurally
@@ -792,7 +802,9 @@ addresses this:
 
 We hypothesize that scaling the model by 2--4× would restore
 \textgreater90\% performance on all 3 tasks without any algorithmic
-change. This is the simplest and most likely successful mitigation.
+change. This hypothesis is untested in the current work and is the most
+direct next experiment --- we leave it to future work to confirm whether
+capacity scaling alone resolves the three-task collapse.
 
 \subsubsection{Mitigation 2: Sparse Expert
 Models}\label{mitigation-2-sparse-expert-models}

@@ -109,14 +109,16 @@ We conduct three ablations:
 
 **Finding:** Online EWC achieves 100.0±0.0% addition retention after subtraction training across 3 random seeds, compared to 64.0±55.4% without EWC — a decisive advantage.
 
-| Metric | With EWC | Without EWC | Delta |
-|--------|----------|-------------|-------|
-| Addition baseline | 83.0% (single run) | 96.7±2.1% (3 seeds) | — |
+| Metric | With EWC | Without EWC | Difference (EWC − No-EWC) |
+|--------|----------|-------------|---------------------------|
+| Addition baseline | 83.0%* | 96.7±2.1% (3 seeds) | — |
 | Addition after subtraction | **100.0±0.0%** | **64.0±55.4%** | **+36.0pp** |
 | Subtraction acquired | **100.0±0.0%** | **65.3±48.0%** | **+34.7pp** |
-| Retention drop | **−2.3±2.1 pp** (improved) | **+32.7±54.9 pp** | **+35.0pp** |
+| Retention drop | **−2.3±2.1 pp** (improved) | **+32.7±54.9 pp** | **−35.0pp** |
 
 *Table 1: Online EWC vs. No-EWC control (mean ± std, 3 seeds). EWC achieves 100% on both tasks with zero variance. Without EWC, the outcome is bimodal: seeds produce either 0% (permanent collapse) or 96% (partial recovery). EWC eliminates this stochasticity entirely.*
+
+*Note: The EWC baseline (83.0%) is from a single earlier run with different random seed and curriculum configuration; the within-study comparison uses matched baselines per condition. The primary comparison is post-subtraction retention, where both conditions use identical evaluation.*
 
 The zero variance of the EWC condition is notable: across all 3 seeds, addition retention and subtraction acquisition both hit exactly 100%. This confirms that with EWC, the model finds a stable, reproducible solution regardless of initialization.
 
@@ -205,7 +207,7 @@ The collapse is immediate. In the first epoch of multiplication training, additi
 
 **Diagnostic: capacity, not merge.** The Fisher norm remains stable throughout (2.35→2.19), and Standard EWC fails identically to Online EWC. These two pieces of evidence converge on the same conclusion: the three-task limit is architectural. No algorithmic modification to the EWC penalty — whether merged or per-task, whether gamma is fixed or adaptive — can overcome a fundamental capacity bottleneck.
 
-**Validated negative result: Adaptive Gamma.** We implemented adaptive gamma, which scales the merge decay rate based on Fisher overlap between tasks (γ_adaptive = base·overlap + min·(1−overlap)). The measured overlap between addition and subtraction was 0.977, producing γ_adaptive=0.886 (near-identical to the default 0.9). Three-task performance was unchanged (Add: 0%, Sub: 5%, Mul: 37%). This confirms that task divergence is not the limiting factor — the bottleneck is capacity, not the merge operator.
+**Validated negative result: Adaptive Gamma.** We implemented adaptive gamma, which scales the merge decay rate based on Fisher overlap between tasks (γ_adaptive = base·overlap + min·(1−overlap)). Overlap is measured as cosine similarity between flattened Fisher vectors: cos(F_old, F_new) = (F_old·F_new) / (‖F_old‖·‖F_new‖), where each Fisher is flattened into a single vector of parameter-wise importance estimates. The measured overlap between addition and subtraction was 0.977 (near-identical, indicating nearly identical parameter importance patterns), producing γ_adaptive=0.886. Three-task performance was unchanged (Add: 0%, Sub: 5%, Mul: 37%). This confirms that task divergence is not the limiting factor — the bottleneck is capacity, not the merge operator.
 
 **Conclusion: Online EWC is validated as optimal for up to 2 structurally similar tasks. The scalability boundary at 3 structurally divergent tasks is architectural, not algorithmic.** Future work should address model capacity directly through wider/deeper architectures, sparse expert models, or progressive networks.
 
@@ -286,7 +288,7 @@ The simplest interpretation of the capacity boundary is that the 1M-parameter mo
 - **Deeper networks** (n_layers: 4 → 8) provides more compositional capacity
 - **Larger feed-forward layers** (d_ff: 512 → 1024) provides more per-layer expressivity
 
-We hypothesize that scaling the model by 2–4× would restore >90% performance on all 3 tasks without any algorithmic change. This is the simplest and most likely successful mitigation.
+We hypothesize that scaling the model by 2–4× would restore >90% performance on all 3 tasks without any algorithmic change. This hypothesis is untested in the current work and is the most direct next experiment — we leave it to future work to confirm whether capacity scaling alone resolves the three-task collapse.
 
 ### Mitigation 2: Sparse Expert Models
 
