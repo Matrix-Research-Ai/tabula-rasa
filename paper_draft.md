@@ -197,7 +197,7 @@ Critically, addition accuracy **improves** at λ ≥ 500 (up to +5pp at λ=1000)
 | Online EWC (merged) | 3.0%* | 0.0%* | 34.0%* |
 | Standard EWC (per-task) | **2.0±2.0%** | **0.0±0.0%** | **24.7±13.1%** |
 
-*Table 3: Three-task sequence results (Standard EWC: mean ± std, 3 seeds). Both merged and per-task EWC collapse identically at 3 tasks. *Online EWC values are from a single run (consistent with the sweep protocol); Standard EWC error bars confirm the collapse is not a stochastic artifact.*
+*Table 3: Three-task sequence results (Standard EWC: mean ± std, 3 seeds). Both merged and per-task EWC collapse identically at 3 tasks. *Online EWC values are from a single run (consistent with the sweep protocol); Standard EWC error bars confirm the collapse is not a stochastic artifact. The single Online EWC run falls within one standard deviation of the per-task condition for all three metrics, confirming no systematic difference between merged and non-merged variants.*
 
 Standard EWC — which stores separate Fisher matrices and anchor weights for each task and applies independent penalties — produces statistically indistinguishable results from the merged variant. The collapse is not caused by information loss during merge; it is caused by **insufficient model capacity** for three structurally divergent operations.
 
