@@ -264,6 +264,14 @@ We propose **training trajectory stability** as an additional evaluation dimensi
 
 A system with stable trajectories is preferable even at the same final accuracy, because it provides predictable, reliable learning behavior. Our EWC system achieves **Stable**, while the no-EWC control exhibits **Unstable** behavior despite superficially similar final accuracy.
 
+### 4.5 Architectural Implication: Frozen Specialists as the Correct Design
+
+The capacity boundary at 3 tasks provides direct empirical validation for the architectural decision underlying the Tabula Rasa system: **frozen independent specialists per operation**, rather than a single continually-trained model.
+
+The finding that a 1M-parameter model cannot accommodate 3 divergent arithmetic operations — even with per-task EWC — demonstrates that shared-weight continual learning has fundamental limits. An alternative approach is to train each operation as a separate specialist model (e.g., `specialist_add.pt`, `specialist_sub.pt`, `specialist_mul.pt`), then freeze them after training. This sidesteps the capacity bottleneck entirely: each specialist dedicates its full parameter budget to one operation, avoiding the parameter interference that causes collapse at N > 2.
+
+This design has precedent in modular and progressive networks [Rusu et al., 2016] and is complementary to EWC. Rather than asking "how do we protect learned skills within one model?", the specialist approach asks "how do we route the right skill to the right input?" — a routing problem that is often easier than the continual learning problem. Our results quantify the cross-over point: for up to 2 structurally similar tasks, shared-weight EWC is optimal; for 3+ divergent tasks, frozen independent specialists are empirically justified.
+
 ---
 
 ## 5. Mitigations and Future Work
