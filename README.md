@@ -2,7 +2,7 @@
 
 **Learning from scratch, one specialist at a time.**
 
-Tabula Rasa is an experimental AI system that trains small transformer models from a blank slate to master arithmetic, language, and reasoning skills. Each skill is a dedicated specialist model trained independently, with a router that knows what it knows and says "I don't know" for what it doesn't.
+Tabula Rasa is an experimental AI system that trains small transformer models from a blank slate. Currently in **Phase 1**: proving single-task arithmetic mastery before adding continual learning.
 
 ```
 pip install torch numpy tqdm
@@ -14,17 +14,73 @@ Then open http://localhost:8000
 
 ---
 
-## Core Philosophy
+## Status
 
-Most AI systems are giant monolithic models trained on everything at once. Tabula Rasa takes the opposite approach:
+| Phase | Focus | Status |
+|-------|-------|--------|
+| **1** | Arithmetic Specialist — single-task mastery | ✅ **COMPLETE** |
+| **2** | Continual Learning — Online EWC + multi-specialist | ❌ **PLANNED** |
+| **3** | Reasoning — Socratic Engine, self-play | ❌ **FUTURE** |
 
-- **Specialize first** — each skill gets its own dedicated transformer (~1M params)
-- **Graduate, don't accumulate** — specialists are frozen once they pass 98% accuracy
-- **Route by capability** — a neural router dispatches problems to the right specialist
+---
 
-This is loosely inspired by Piaget's stages of cognitive development: infants learn object permanence before counting, counting before arithmetic, arithmetic before algebra.
+## Phase 1: Arithmetic Specialist (COMPLETE)
 
-## Architecture
+- ✅ **1M-param transformer** with RoPE, RMSNorm, configurable depth
+- ✅ **Fused carry-digit tokenizer** — 20 two-character tokens (00-19) encoding carry + digit per column
+- ✅ **Addition specialist: 100% accuracy in 3,000 steps** (1-digit, 1M params, CPU)
+- ✅ **Curriculum learning** — starts with 1-digit, progresses to 4-digit
+- ✅ **Config-driven training** — all knobs in `config.py`, editable via dashboard
+- ✅ **Auto-train loop** — evaluates all operations, trains the weakest, repeats
+- ✅ **Interactive dashboard** — 25+ views for training, config, evaluation
+- ✅ **REST API** — inference, training control, checkpoint management
+
+### Validated Results
+
+| Claim | Result | Evidence |
+|-------|--------|----------|
+| 100% 1-digit addition in ≤4K steps | **100% in 3K steps** | `RESULTS.md` |
+| Fused carry-digit tokens (00-19) | **20 tokens in vocab** (IDs 4-23) | `tokenizer.py` |
+| Online EWC Fisher Matrix | **NOT IMPLEMENTED** | Planned for Phase 2 |
+
+### What the architecture proves
+
+The fused carry-digit token insight is the core innovation in Phase 1. By encoding each column's carry and digit as a single token (e.g. "04" = carry=0, digit=4), the transformer sees aligned positional information that makes carry propagation learnable at 1M parameters — a problem that typically requires much larger models.
+
+## Phase 2: Continual Learning (PLANNED)
+
+The system's philosophical differentiator — learning without catastrophic forgetting — is **not yet implemented**. The following components are required:
+
+- [ ] **Online Elastic Weight Consolidation (EWC)**
+  - Fisher matrix computation on replay buffer
+  - Merging: F_combined = γ · F_old + F_new
+  - EWC penalty term in training loss
+  - Save/load `ewc_fisher.pt` per specialist
+
+- [ ] **Hippocampus** (short-term memory)
+  - SQLite store for high-surprise experiences
+  - Replay buffer sampling
+  - Prediction error thresholding
+
+- [ ] **Sleep cycle daemon** (background consolidation)
+  - Periodic replay buffer mixing
+  - EWC parameter update after each specialist
+
+- [ ] **Multi-specialist training**
+  - Subtraction (sub) — validate with Online EWC
+  - Multiplication (mul) — validate addition retention
+
+- [ ] **Sequential task retention test**
+  - Train addition → save → train subtraction with EWC → check addition
+  - Train multiplication → check both preserved
+
+## Phase 3: Reasoning (FUTURE)
+
+- [ ] Socratic Engine (dialectical self-play)
+- [ ] Language AlphaZero
+- [ ] Code AlphaZero
+
+## Architecture (Phase 1)
 
 | Component | File | Purpose |
 |-----------|------|---------|
@@ -40,46 +96,14 @@ This is loosely inspired by Piaget's stages of cognitive development: infants le
 
 ### Model Specs (default)
 
-- **Parameters**: ~1M (128-dim, 4 layers, 4 heads, 512 FF)
-- **Context**: 32 tokens (enough for scratchpad arithmetic)
-- **Position encoding**: RoPE
-- **Normalization**: RMSNorm
-- **Activation**: ReLU
-
-## What It Can Do
-
-### Arithmetic (mature)
-
-Trainable specialists for:
-- **Addition** — multi-digit with carry propagation
-- **Subtraction** — multi-digit with borrowing
-- **Multiplication** — multi-digit
-- **Division** — integer division
-
-Key training techniques:
-- **Reversed digits** — aligns carry positions for easier learning
-- **Loss masking** — ignores prompt/pad tokens during training
-- **Curriculum learning** — starts with 1-digit, progresses to 4-digit
-- **Scratchpad** — model shows carry steps in output
-- **Hard negatives** — focuses training on problems the model gets wrong
-
-### AlphaZero Self-Play (experimental)
-
-- **Language AlphaZero** (`run_language_az.py`) — self-play language acquisition via MCTS
-- **Code AlphaZero** (`run_code_az.py`) — self-play programming in a Python sandbox
-
-### Cognitive Stages (egefalos/)
-
-The Piaget-inspired developmental system builds skills in stages:
-
-| Stage | Skills | 
-|-------|--------|
-| **Infancy (S1-2)** | Math, Pattern recognition |
-| **Toddlerhood (S3-4)** | Taxonomy, State tracking |
-| **Childhood (S5)** | Grammar, Syntax |
-| **Adulthood (S6)** | Dialogue, Complex reasoning |
-
-Source: `egefalos/` directory — `tabula_rasa.py` is the main entry point for the full system.
+| Param | Value |
+|-------|-------|
+| Parameters | ~1M (128-dim, 4 layers, 4 heads, 512 FF) |
+| Context | 32 tokens (enough for scratchpad arithmetic) |
+| Position encoding | RoPE |
+| Normalization | RMSNorm |
+| Activation | ReLU |
+| Vocab | 44 tokens (4 special + 20 carry-digit + 20 math chars) |
 
 ## Getting Started
 
@@ -94,7 +118,7 @@ tqdm>=4.60.0
 ### Train a specialist
 
 ```bash
-python3 train_specialist.py add        # Train addition
+python3 train_specialist.py add        # Train addition (3K steps to 100% 1-digit)
 python3 train_specialist.py sub        # Train subtraction
 python3 train_specialist.py mul        # Train multiplication
 python3 train_specialist.py div        # Train division
@@ -112,26 +136,17 @@ python3 auto_train.py --budget 10000       # 10K step budget
 python3 auto_train.py --ops add sub        # Only add + sub
 ```
 
-The auto-trainer evaluates all operations, finds the weakest below target, trains it, and repeats.
-
 ### Start the dashboard
 
 ```bash
 python3 api_server.py          # API on port 8000
 ```
 
-Then open http://localhost:8000 in your browser.
+Open http://localhost:8000
 
 ### Windows quick start
 
-Double-click `start_tabula_rasa.bat` — it starts both servers and opens the dashboard.
-
-### Full system
-
-```bash
-python3 egefalos/tabula_rasa.py                # Port 8002
-python3 egefalos/tabula_rasa.py --learn biology # Queue a new skill
-```
+Double-click `start_tabula_rasa.bat` — starts both servers and opens the dashboard.
 
 ## Dashboard
 
@@ -150,12 +165,11 @@ The web dashboard at http://localhost:8000 has 25+ views:
 | Error Analysis | Find which digit positions the model gets wrong |
 | Log Viewer | Browse training logs |
 | System Status | CPU/memory/process info |
-| P2P Swarm | Peer-to-peer specialist exchange |
-| Full list | `Dashboard/views/` |
+| P2P Swarm | Peer-to-peer specialist exchange (experimental) |
 
 ## Configuration
 
-Everything is in `config.py` — edit directly or use the Model Config dashboard:
+Everything in `config.py` — edit directly or use the Model Config dashboard:
 
 ```python
 d_model = 128           # Embedding dimension
@@ -171,11 +185,7 @@ use_reversed = True     # Reverse digits for carry alignment
 use_loss_masking = True # Ignore prompt/pad in loss
 ```
 
-The dashboard's Model Config view lets you change any parameter via the API (`GET/POST /api/config`) without touching the file.
-
 ## API
-
-The API server runs on port 8000:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -193,9 +203,6 @@ The API server runs on port 8000:
 | `/api/export` | POST | Export a specialist as zip |
 | `/api/import` | POST | Import a shared specialist |
 | `/health` | GET | Server health check |
-| `/api/registry` | GET | P2P registry |
-| `/api/chain-status` | GET | Chain training status |
-| `/api/system-resources` | GET | CPU/memory/process stats |
 
 ## Project Structure
 
@@ -205,62 +212,31 @@ tabula-rasa/
 ├── auto_train.py          # Autonomous training loop
 ├── model.py               # Transformer model
 ├── train_specialist.py    # Specialist trainer
-├── tokenizer.py           # Math tokenizer
-├── bpe_tokenizer.py       # BPE tokenizer (experimental)
+├── tokenizer.py           # Math tokenizer (carry-digit tokens)
 ├── config.py              # All hyperparameters
-├── config.py.bak          # Config backup
 ├── dataset.py             # Problem generation
 ├── eval.py                # Standalone evaluation
 ├── generate.py            # Standalone inference
 │
-├── egefalos/              # Cognitive stage system
+├── egefalos/              # Developmental system (in development)
 │   ├── tabula_rasa.py     # Main entry point
 │   ├── piaget/            # Piagetian stages
-│   │   ├── sensorimotor.py
-│   │   ├── preoperational.py
-│   │   ├── concrete_operational.py
-│   │   └── formal_operational.py
-│   ├── sleep_cycle.py     # Consolidation (memory replay)
-│   ├── mcts.py            # Monte Carlo Tree Search
-│   ├── language_az.py     # Language AlphaZero
-│   ├── code_curriculum.py
-│   ├── code_sandbox.py    # Python sandbox for self-play
-│   └── ...                # Specialist modules
+│   ├── sleep_cycle.py     # Consolidation (planned)
+│   └── mcts.py            # Monte Carlo Tree Search
 │
-├── Dashboard/             # Web UI
-│   ├── dashboard.html     # Main layout
-│   ├── core/              # Shared JS/CSS
-│   └── views/             # 25+ view panels
-│
+├── Dashboard/             # Web UI (25+ views)
 ├── specialist_network.py  # Specialist lifecycle management
 ├── specialist_router.py   # Query routing
-├── export_specialist.py   # Export/import flow
-│
-├── serve.py               # Standalone dashboard server
-├── self_improve.py        # Self-play improvement loop
-├── scripts/               # Utility scripts
-├── train.py / train_gpu.py / train_optimized.py  # Training variants
-├── run_stage.py           # Stage runner
-├── run_language_az.py     # Language AlphaZero runner
-├── run_code_az.py         # Code AlphaZero runner
+├── serve.py               # Dashboard server
+├── self_improve.py        # Self-play loop
 │
 ├── start_tabula_rasa.bat  # Windows launcher
-├── setup_gpu.sh           # GPU setup
 ├── requirements.txt       # Dependencies
-└── whitepaper.md          # Technical whitepaper
+├── whitepaper.md          # Technical whitepaper
+├── RESULTS.md             # Validation results
+└── README.md              # This file
 ```
-
-## Development
-
-Tabula Rasa is an active research project. Areas of exploration:
-
-- **Scaling** — larger models, more operations, harder curriculum
-- **Transfer learning** — can addition help with multiplication?
-- **Sleep cycles** — offline consolidation via memory replay
-- **P2P specialist exchange** — share trained specialists between instances
-- **Self-play** — AlphaZero-style improvement without human data
-- **Graduation** — 98% accuracy = frozen, never overwritten
 
 ---
 
-[GitHub](https://github.com/tabula-rasa-ai/tabula-rasa) &bull; [Telegram](https://t.me/TabulaRasaAi) &bull; [Whitepaper](whitepaper.md)
+[GitHub](https://github.com/tabula-rasa-ai/tabula-rasa) • [Telegram](https://t.me/TabulaRasaAi) • [Whitepaper](whitepaper.md) • [Results](RESULTS.md)
