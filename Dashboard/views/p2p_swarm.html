@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabula Rasa — P2P Specialist Swarm</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'JetBrains Mono', monospace; background: #020617; color: #e2e8f0; padding: 32px; display: flex; flex-direction: column; align-items: center; }
+.container { max-width: 1100px; width: 100%; }
+h1 { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+h1 .pulse { width: 10px; height: 10px; border-radius: 50%; background: #22d3ee; display: inline-block; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 8px #22d3ee; } 50% { opacity: 0.4; box-shadow: 0 0 2px #22d3ee; } }
+.subtitle { font-size: 0.75rem; color: #64748b; margin-bottom: 24px; }
+.card { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.card h3 { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+.card ul { list-style: none; font-size: 0.72rem; color: #94a3b8; line-height: 1.8; }
+.card ul li::before { content: "› "; color: #475569; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 0.65rem; color: #64748b; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1><span class="pulse"></span> Tabula Rasa — P2P Specialist Swarm</h1>
+  <div class="subtitle">Distributed Discovery · Fisher-Verified · Serverless Exchange</div>
+
+  <svg viewBox="0 0 1050 680" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+      </pattern>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+      </marker>
+      <marker id="arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+      </marker>
+      <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
+      </marker>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <rect width="1050" height="680" fill="url(#grid)"/>
+
+    <!-- Background: DHT ring -->
+    <ellipse cx="525" cy="340" rx="320" ry="280" fill="none" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,6" opacity="0.5"/>
+    <ellipse cx="525" cy="340" rx="260" ry="220" fill="none" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="2,4" opacity="0.3"/>
+    <text x="525" y="50" text-anchor="middle" fill="#334155" font-size="9" font-weight="600">DHT RING (libp2p / Kademlia)</text>
+
+    <!-- ─── NODE A (left) ───────────────────────────────────── -->
+    <!-- Node boundary -->
+    <rect x="30" y="80" width="260" height="540" rx="12" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.6"/>
+    <text x="160" y="100" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600">NODE A — Trainer/Seeder</text>
+
+    <!-- Local specialist box -->
+    <rect x="50" y="115" width="220" height="90" rx="6" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.2"/>
+    <text x="160" y="137" text-anchor="middle" fill="#34d399" font-size="9" font-weight="600">Local Specialists</text>
+    <text x="60" y="155" fill="#94a3b8" font-size="8">add  d128 L4  51.3%  ✓</text>
+    <text x="60" y="169" fill="#94a3b8" font-size="8">sub  d128 L4  training</text>
+    <text x="60" y="183" fill="#94a3b8" font-size="8">mul  d128 L6  pending</text>
+    <text x="60" y="197" fill="#94a3b8" font-size="8">grammar  d64 L2  imported</text>
+
+    <!-- EWC Fisher store -->
+    <rect x="50" y="220" width="220" height="55" rx="6" fill="rgba(76,29,149,0.3)" stroke="#a78bfa" stroke-width="1.2"/>
+    <text x="160" y="242" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="600">EWC Fisher Vault</text>
+    <text x="60" y="260" fill="#94a3b8" font-size="8">sha256(ewc_fisher.pt)  ➔  announce</text>
+
+    <!-- Export engine -->
+    <rect x="50" y="290" width="220" height="55" rx="6" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.2"/>
+    <text x="160" y="312" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600">Export Engine</text>
+    <text x="60" y="330" fill="#94a3b8" font-size="8">zip:  model.pt + tokenizer.json + metadata.json</text>
+
+    <!-- DHT agent -->
+    <rect x="50" y="360" width="220" height="65" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="160" y="382" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600">DHT Agent (Kademlia)</text>
+    <text x="60" y="400" fill="#78716c" font-size="8">ANNOUNCE: add#sha256(ewc_fisher.pt)#51.3%</text>
+    <text x="60" y="414" fill="#78716c" font-size="8">QUERY: grammar#sha256 ?</text>
+
+    <!-- Remote specialist stub -->
+    <rect x="50" y="440" width="220" height="65" rx="6" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.2"/>
+    <text x="160" y="462" text-anchor="middle" fill="#fb7185" font-size="9" font-weight="600">RemoteSpecialist Stub</text>
+    <text x="60" y="480" fill="#94a3b8" font-size="8">generate(prompt)  →  TCP stream to peer</text>
+    <text x="60" y="494" fill="#94a3b8" font-size="8">router.generate()  →  stub.forward()</text>
+
+    <!-- Peer connections -->
+    <rect x="50" y="520" width="220" height="80" rx="6" fill="rgba(251,146,60,0.15)" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="160" y="540" text-anchor="middle" fill="#fb923c" font-size="8">Peers (3 connected)</text>
+    <text x="60" y="558" fill="#78716c" font-size="7">192.168.1.42:9001  |  add(44%)  sub(31%)</text>
+    <text x="60" y="572" fill="#78716c" font-size="7">10.0.0.15:9001     |  mul(29%)</text>
+    <text x="60" y="586" fill="#78716c" font-size="7">172.16.0.8:9001    |  grammar(87%)  mul(35%)</text>
+
+    <!-- ─── NODE B (center) ──────────────────────────────────── -->
+    <rect x="370" y="80" width="260" height="540" rx="12" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.6"/>
+    <text x="500" y="100" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600">NODE B — Consumer/Validator</text>
+
+    <!-- Piagiet benchmark gate -->
+    <rect x="390" y="115" width="220" height="70" rx="6" fill="rgba(136,19,55,0.35)" stroke="#fb7185" stroke-width="1.2"/>
+    <text x="500" y="135" text-anchor="middle" fill="#fb7185" font-size="9" font-weight="600">Piaget Benchmark Gate</text>
+    <text x="400" y="155" fill="#94a3b8" font-size="8">1.  sha256(ewc_fisher)  matches announcement?</text>
+    <text x="400" y="169" fill="#94a3b8" font-size="8">2.  90% on held-out problems?</text>
+
+    <!-- Imported specialist -->
+    <rect x="390" y="200" width="220" height="65" rx="6" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.2"/>
+    <text x="500" y="222" text-anchor="middle" fill="#34d399" font-size="9" font-weight="600">Imported Specialists</text>
+    <text x="400" y="242" fill="#94a3b8" font-size="8">grammar  d64 L2  87%  ✓ frozen</text>
+    <text x="400" y="256" fill="#94a3b8" font-size="8">add      d128 L4  imported from A</text>
+
+    <!-- EWC Fisher store -->
+    <rect x="390" y="280" width="220" height="55" rx="6" fill="rgba(76,29,149,0.3)" stroke="#a78bfa" stroke-width="1.2"/>
+    <text x="500" y="302" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="600">EWC Fisher Vault (read-only)</text>
+    <text x="400" y="320" fill="#94a3b8" font-size="8">Never fine-tune imported; clone to adapt</text>
+
+    <!-- DHT agent -->
+    <rect x="390" y="350" width="220" height="65" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="500" y="372" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600">DHT Agent</text>
+    <text x="400" y="390" fill="#78716c" font-size="8">BOOTSTRAP: known_peer → sync routing table</text>
+    <text x="400" y="404" fill="#78716c" font-size="8">FIND: grammar → 172.16.0.8:9001</text>
+
+    <!-- Exchange ledger -->
+    <rect x="390" y="430" width="220" height="70" rx="6" fill="rgba(251,146,60,0.12)" stroke="#fb923c" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="500" y="450" text-anchor="middle" fill="#fb923c" font-size="8">Exchange Ledger</text>
+    <text x="400" y="468" fill="#78716c" font-size="7">gave:  multiplication 24%  to Node A</text>
+    <text x="400" y="482" fill="#78716c" font-size="7">got:  grammar 87%  from Node C</text>
+
+    <!-- P2P transfer -->
+    <rect x="390" y="515" width="220" height="55" rx="6" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1.2"/>
+    <text x="500" y="537" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600">P2P Transfer (TCP)</text>
+    <text x="400" y="555" fill="#94a3b8" font-size="8">GET /specialists/add.zip  ➔  stream to disk</text>
+
+    <!-- ─── NODE C (right) ───────────────────────────────────── -->
+    <rect x="720" y="80" width="260" height="540" rx="12" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.6"/>
+    <text x="850" y="100" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="600">NODE C — Specialist / Relay</text>
+
+    <rect x="740" y="115" width="220" height="90" rx="6" fill="rgba(6,78,59,0.35)" stroke="#34d399" stroke-width="1.2"/>
+    <text x="850" y="137" text-anchor="middle" fill="#34d399" font-size="9" font-weight="600">Specialists</text>
+    <text x="750" y="155" fill="#94a3b8" font-size="8">grammar  d64 L2  87%  ✓</text>
+    <text x="750" y="169" fill="#94a3b8" font-size="8">mul      d128 L6  35%  ✓</text>
+    <text x="750" y="185" fill="#94a3b8" font-size="8">div      d128 L4  42%  ✓</text>
+    <text x="750" y="199" fill="#94a3b8" font-size="8">code     d128 L8  training</text>
+
+    <rect x="740" y="220" width="220" height="55" rx="6" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1.2"/>
+    <text x="850" y="242" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="600">Seed Server</text>
+    <text x="750" y="260" fill="#94a3b8" font-size="8">Serves zips over HTTP  0.0.0.0:9001</text>
+
+    <rect x="740" y="290" width="220" height="55" rx="6" fill="rgba(30,41,59,0.4)" stroke="#94a3b8" stroke-width="1.2"/>
+    <text x="850" y="312" text-anchor="middle" fill="#94a3b8" font-size="9" font-weight="600">DHT Agent</text>
+    <text x="750" y="330" fill="#94a3b8" font-size="8">Routing table: 12 peers</text>
+
+    <rect x="740" y="360" width="220" height="55" rx="6" fill="rgba(136,19,55,0.25)" stroke="#fb7185" stroke-width="1.2"/>
+    <text x="850" y="382" text-anchor="middle" fill="#fb7185" font-size="9" font-weight="600">Integrity Checker</text>
+    <text x="750" y="400" fill="#94a3b8" font-size="8">Periodic sha256(ewc_fisher) re-validation</text>
+
+    <!-- ─── DHT connections (arrows) ─────────────────────────── -->
+    <!-- A → B -->
+    <path d="M 270 390 Q 320 375 370 385" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+    <text x="320" y="370" text-anchor="middle" fill="#475569" font-size="7">DHT: FIND_NODE</text>
+    <!-- B → C -->
+    <path d="M 610 380 Q 665 370 720 380" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+    <text x="665" y="368" text-anchor="middle" fill="#475569" font-size="7">DHT: FIND_VALUE</text>
+    <!-- C → A (ring) -->
+    <path d="M 980 380 Q 1020 340 900 200 Q 800 100 300 150 Q 100 180 50 380" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="3,4" opacity="0.3"/>
+
+    <!-- Specialist transfer A → B -->
+    <path d="M 270 530 Q 320 540 370 540" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrow-cyan)" filter="url(#glow)"/>
+    <text x="320" y="525" text-anchor="middle" fill="#22d3ee" font-size="7" font-weight="600">STREAM: add.zip (3.8 MB)</text>
+
+    <!-- Benchmark query B → C -->
+    <path d="M 610 150 Q 665 145 720 150" fill="none" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+    <text x="665" y="138" text-anchor="middle" fill="#fb7185" font-size="7">BENCHMARK: grammar → 87%</text>
+
+    <!-- exchange C → A -->
+    <path d="M 740 170 Q 650 80 300 200 Q 200 250 270 260" fill="none" stroke="#fb923c" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <text x="500" y="105" text-anchor="middle" fill="#fb923c" font-size="7">EXCHANGE: mul(35%) ↔ add(51%)</text>
+  </svg>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#34d399"></span> Specialist (local/imported)</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span> Transfer / Export</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#fb7185"></span> Integrity / Benchmark</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span> EWC Fisher Vault</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#fb923c"></span> Exchange / Ledger</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span> DHT Agent</span>
+  </div>
+
+  <div class="g3" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-header"><span class="card-dot" style="background:#22d3ee"></span><h3>Phase 1 — LAN Discovery</h3></div>
+      <ul>
+        <li>mDNS broadcast on local subnet</li>
+        <li>Each node announces IP:port + specialist list</li>
+        <li>HTTP GET /specialists for available zips</li>
+        <li>Already works with current export/import API</li>
+        <li>Zero config, no DHT library needed</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot" style="background:#a78bfa"></span><h3>Phase 2 — DHT Registry</h3></div>
+      <ul>
+        <li>Install kademlia (pure Python, no deps)</li>
+        <li>Each node: specialist_name + sha256(fisher) + accuracy → DHT</li>
+        <li>Query by name + accuracy threshold</li>
+        <li>Fisher hash as content-addressable proof</li>
+        <li>Bootstrap from known peer list or mDNS</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-dot" style="background:#fb7185"></span><h3>Phase 3 — Trust &amp; Exchange</h3></div>
+      <ul>
+        <li>Piaget benchmark gate before import (90% gate)</li>
+        <li>Exchange ledger: you give one, you get one</li>
+        <li>RemoteSpecialist stub for live inference</li>
+        <li>Reputation: accuracy deltas over time</li>
+        <li>DHT-based NAT traversal for WAN peers</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:4px;">
+    <div class="card-header"><span class="card-dot" style="background:#fbbf24"></span><h3>Implementation Roadmap</h3></div>
+    <div style="font-size:0.72rem;color:#94a3b8;line-height:1.9;">
+      <strong style="color:#e2e8f0">Week 1:</strong> mDNS discovery + LAN peer table in the Experiment Comparator. Nodes find each other on the same network automatically. Show peer specialists in the Exchange panel.<br>
+      <strong style="color:#e2e8f0">Week 2:</strong> RemoteSpecialist class — router can call a peer's model via TCP without downloading it. Useful for rare specialists you don't want to store locally.<br>
+      <strong style="color:#e2e8f0">Week 3:</strong> kademlia DHT overlay. Replace the HTTP registry with a distributed one. Fisher hash verification on both ends.<br>
+      <strong style="color:#e2e8f0">Week 4:</strong> Exchange protocol (give-to-get), reputation tracking, NAT punching for internet peers.
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:0.65rem;color:#475569;margin-top:16px;padding:12px;">
+    Tabula Rasa v1.3 — P2P Specialist Swarm Design &mdash; June 2026
+  </div>
+</div>
+</body>
+</html>

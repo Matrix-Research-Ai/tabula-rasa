@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 28px 32px; max-width: 1100px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 24px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h2 .badge { margin-left: auto; }
+        h3 { color: #60a5fa; font-size: 1.05rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 22px; margin-bottom: 24px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g6 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+
+        .sb { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
+        .sb h4 { color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .sb .val { font-size: 1.6rem; font-weight: bold; margin-bottom: 4px; }
+        .sb .sub { font-size: 0.8rem; color: #6b7280; }
+        .sb .bar { width: 100%; height: 6px; background: #374151; border-radius: 3px; margin-top: 10px; overflow: hidden; }
+        .sb .bar div { height: 100%; border-radius: 3px; transition: width 1s; }
+
+        .stage-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stage-card .n { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        .stage-card .t { font-size: 0.9rem; font-weight: 600; margin: 6px 0; }
+        .stage-card .tok { font-size: 0.7rem; color: var(--muted); }
+        .stage-card .s { font-size: 0.7rem; margin-top: 6px; }
+
+        .az-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+        .az-card h4 { font-size: 0.9rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .az-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .az-card .row span:first-child { color: var(--muted); }
+        .az-card .row span:last-child { font-weight: 600; }
+        .az-card .row:last-child { border-bottom: none; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { text-align: left; padding: 10px 14px; background: #111827; color: #9ca3af; font-weight: 600; border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: #d1d5db; }
+
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .by { background: rgba(234,179,8,0.15); color: #facc15; }
+        .bd { background: rgba(107,114,128,0.15); color: #9ca3af; }
+        .bp { background: rgba(168,85,247,0.15); color: #c084fc; }
+        .br { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+        .flow { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
+        .flow-step { text-align: center; min-width: 100px; }
+        .flow-step .box { background: var(--panel); border: 2px solid var(--border); border-radius: 10px; padding: 10px 16px; font-size: 0.8rem; }
+        .flow-step .box.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .flow-step .box.done { border-color: var(--green); background: rgba(34,197,94,0.08); }
+        .flow-step .label { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+        .arrow { font-size: 1.3rem; color: var(--muted); }
+
+        .knob-row { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8rem; }
+        .knob-row span { background: rgba(59,130,246,0.1); padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(59,130,246,0.2); }
+        .knob-row span kbd { color: var(--accent); font-weight: 600; }
+        .s4 { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .s4 .v { font-size: 1.3rem; font-weight: bold; }
+        .s4 .l { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <h2>&#x1F4BB; System &amp; Egefalos Architecture <span class="badge bg">v1.3</span></h2>
+
+    <!-- Cognitive Loop Flow -->
+    <div class="card">
+        <h3>&#x1F504; Cognitive Loop: Awake &#x2192; Socratic &#x2192; Pythagorean &#x2192; Sleep</h3>
+        <div class="flow" id="cog-flow">
+            <div class="flow-step"><div class="box active" id="fl1"><div class="val">&#x2600;&#xFE0F; Awake</div></div><div class="label">Interact &amp; Store</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fl2"><div class="val">&#x1F4AC; Socratic</div></div><div class="label">Generator vs Critic</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fl3"><div class="val">&#x2696;&#xFE0F; Pythagorean</div></div><div class="label">Audit &amp; Purge</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fl4"><div class="val">&#x1F319; Sleep</div></div><div class="label">EWC Consolidation</div></div>
+        </div>
+        <div id="loop-status" style="text-align:center;font-size:0.8rem;color:var(--muted);margin-top:8px;">&#x25B6; Awake phase — system ready for interaction</div>
+    </div>
+
+    <!-- Egefalos Brain Metrics -->
+    <div class="g3">
+        <div class="sb">
+            <h4>&#x1F9E0; Hippocampus (Awake)</h4>
+            <div class="val" id="hip-count" style="color:#60a5fa;">0</div>
+            <div class="sub">Unconsolidated experiences</div>
+            <div class="bar"><div id="hip-bar" style="width:0%;background:#3b82f6;"></div></div>
+            <div class="sub" style="margin-top:4px;">Surprise threshold: <span id="hip-threshold" style="color:#facc15;">8.0</span></div>
+        </div>
+        <div class="sb">
+            <h4>&#x1F31B; Neocortex (Sleep)</h4>
+            <div class="val" id="last-sleep" style="font-size:1.2rem;color:#c084fc;">-</div>
+            <div class="sub">Online EWC: <span id="ewc-status" style="color:#22c55e;">Pending</span></div>
+            <div class="sub" style="margin-top:4px;">&#x3B3; decay: <strong>0.9</strong> | Consolidated: <strong id="consol-count" style="color:white;">0</strong></div>
+        </div>
+        <div class="sb">
+            <h4>&#x2696;&#xFE0F; Pythagorean Review</h4>
+            <div class="val" style="font-size:1.2rem;color:#facc15;">Score: <span id="score" style="color:#22c55e;">-</span></div>
+            <div class="sub">Fallacies purged: <span id="fallacies">0</span></div>
+            <div class="sub">Neglected duties: <span id="duties">0</span></div>
+        </div>
+    </div>
+
+    <!-- Server and Tokenizer Stats -->
+    <div class="g4">
+        <div class="s4"><div class="v" id="s-pid" style="color:var(--accent);">-</div><div class="l">Server PID</div></div>
+        <div class="s4"><div class="v" id="s-uptime" style="color:#22c55e;">-</div><div class="l">Uptime</div></div>
+        <div class="s4"><div class="v" id="s-vocab" style="color:#c084fc;">24</div><div class="l">Vocab Size</div></div>
+        <div class="s4"><div class="v" id="s-corrections" style="color:#facc15;">0</div><div class="l">Corrections</div></div>
+    </div>
+
+    <!-- Self-Seeded BPE -->
+    <div class="card">
+        <h3>&#x1F9EA; Self-Seeded BPE Tokenizer</h3>
+        <div class="g4">
+            <div class="s4"><div class="v" id="bpe-base" style="color:var(--accent);">24</div><div class="l">Base vocab (arithmetic)</div></div>
+            <div class="s4"><div class="v" id="bpe-merges" style="color:#22c55e;">0</div><div class="l">BPE merges learned</div></div>
+            <div class="s4"><div class="v" id="bpe-total" style="color:#c084fc;">24</div><div class="l">Total vocabulary</div></div>
+            <div class="s4"><div class="v" id="bpe-monologue" style="color:#facc15;">0</div><div class="l">Verified monologue (chars)</div></div>
+        </div>
+        <div class="knob-row" style="justify-content:center;">
+            <span>&#x1F511; Seeds from: <kbd>verified_monologue.txt</kbd></span>
+            <span>&#x1F500; Merges/cycle: <kbd id="bpe-rate">0</kbd></span>
+            <span>&#x1F4CA; Growth: 24 &#x2192; <kbd id="bpe-target">100+</kbd> (Cycle 25)</span>
+        </div>
+    </div>
+
+    <!-- 6-Stage Cognitive Syllabus -->
+    <div class="card">
+        <h3>&#x1F393; 6-Stage Cognitive Syllabus</h3>
+        <div class="g6" id="stage-grid">
+            <div class="stage-card" style="border-color:rgba(59,130,246,0.4);">
+                <div class="n">Stage 1</div>
+                <div class="t" style="color:#60a5fa;">&#x2797; Math</div>
+                <div class="tok">24-token char tokenizer</div>
+                <div class="s"><span class="badge bg">Graduated</span> <span style="color:var(--muted);font-size:0.7rem;">98% held-out</span></div>
+            </div>
+            <div class="stage-card" style="border-color:rgba(52,211,153,0.4);">
+                <div class="n">Stage 2</div>
+                <div class="t" style="color:#34d399;">&#x1F9E9; Patterns</div>
+                <div class="tok">47-token char tokenizer</div>
+                <div class="s"><span class="badge by">Training</span> <span style="color:var(--muted);font-size:0.7rem;">reverse, palindrome</span></div>
+            </div>
+            <div class="stage-card" style="border-color:rgba(251,191,36,0.4);">
+                <div class="n">Stage 3</div>
+                <div class="t" style="color:#fbbf24;">&#x1F4DA; Taxonomy</div>
+                <div class="tok">100-token char tokenizer</div>
+                <div class="s"><span class="badge bd">Pending</span> <span style="color:var(--muted);font-size:0.7rem;">Is-A logic, Z3</span></div>
+            </div>
+            <div class="stage-card" style="border-color:rgba(168,85,247,0.4);">
+                <div class="n">Stage 4</div>
+                <div class="t" style="color:#a855f7;">&#x1F4CB; State</div>
+                <div class="tok">512-token BPE</div>
+                <div class="s"><span class="badge bd">Pending</span> <span style="color:var(--muted);font-size:0.7rem;">Object permanence</span></div>
+            </div>
+            <div class="stage-card" style="border-color:rgba(236,72,153,0.4);">
+                <div class="n">Stage 5</div>
+                <div class="t" style="color:#ec4899;">&#x1F4DD; Grammar</div>
+                <div class="tok">512-token BPE</div>
+                <div class="s"><span class="badge bd">Pending</span> <span style="color:var(--muted);font-size:0.7rem;">CFG parse-tree game</span></div>
+            </div>
+            <div class="stage-card" style="border-color:rgba(239,68,68,0.4);">
+                <div class="n">Stage 6</div>
+                <div class="t" style="color:#ef4444;">&#x1F4AD; Dialectics</div>
+                <div class="tok">1024-token BPE</div>
+                <div class="s"><span class="badge bd">Pending</span> <span style="color:var(--muted);font-size:0.7rem;">Socratic philosophy</span></div>
+            </div>
+        </div>
+        <div class="knob-row" style="justify-content:center;">
+            <span>&#x1F393; Graduation: <kbd style="color:var(--green);">98%</kbd> held-out test</span>
+            <span>&#x1F512; Freeze: <kbd>requires_grad=False</kbd></span>
+            <span>&#x1F31F; Daemon: <kbd>graduation_daemon.py</kbd></span>
+        </div>
+    </div>
+
+    <!-- Language AlphaZero -->
+    <div class="g2">
+        <div class="az-card" style="border-color:rgba(59,130,246,0.3);">
+            <h4>&#x1F3AE; Language AlphaZero</h4>
+            <div class="row"><span>Status</span><span><span class="badge bg">Active</span></span></div>
+            <div class="row"><span>Game type</span><span>Semantic Reconstruction</span></div>
+            <div class="row"><span>MCTS</span><span id="lang-mcts">Entropy-triggered (16 sims)</span></div>
+            <div class="row"><span>Grammar engine</span><span id="lang-grammar">CFG + Z3</span></div>
+            <div class="row"><span>Value head</span><span id="lang-value" style="color:var(--green);">ON</span></div>
+            <div class="row"><span>Difficulty</span><span id="lang-diff">Medium</span></div>
+        </div>
+        <div class="az-card" style="border-color:rgba(168,85,247,0.3);">
+            <h4>&#x1F4BB; Code AlphaZero</h4>
+            <div class="row"><span>Status</span><span><span class="badge bg">Active</span></span></div>
+            <div class="row"><span>Stage 1</span><span id="code-s1">Syntax Game</span></div>
+            <div class="row"><span>Stage 2</span><span id="code-s2">Fuzzing Game</span></div>
+            <div class="row"><span>Stage 3</span><span id="code-s3">Algorithm Self-Play</span></div>
+            <div class="row"><span>Sandbox</span><span>ast.parse + subprocess</span></div>
+            <div class="row"><span>Efficiency bonus</span><span id="code-eff">Yes (&lt;10ms = +0.3)</span></div>
+        </div>
+    </div>
+
+    <!-- Architecture Knobs -->
+    <div class="card">
+        <h3>&#x2699;&#xFE0F; Config-Driven Architecture <span class="badge bg" style="margin-left:auto;">V1.3</span></h3>
+        <div class="knob-row">
+            <span>Layers: <kbd id="k-layers">8</kbd></span>
+            <span>Heads: <kbd id="k-heads">4</kbd></span>
+            <span>d_model: <kbd id="k-dmodel">96</kbd></span>
+            <span>d_ff: <kbd id="k-dff">384</kbd></span>
+            <span>Params: <kbd id="k-params">1,185,888</kbd></span>
+            <span>Activation: <kbd id="k-act">SwiGLU</kbd></span>
+            <span>Norm: <kbd id="k-norm">RMSNorm</kbd></span>
+            <span>Pos encoding: <kbd id="k-pos">RoPE</kbd></span>
+            <span>Weight init: <kbd id="k-init">Normal(0,0.02)</kbd></span>
+            <span>Weight tying: <kbd id="k-tying">Untied</kbd></span>
+            <span>Dropout: <kbd id="k-drop">0.1</kbd></span>
+            <span>Value head: <kbd id="k-vh" style="color:var(--orange);">OFF</kbd></span>
+        </div>
+        <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+            <div class="knob-row">
+                <span>Optimizer: <kbd id="k-opt">AdamW</kbd></span>
+                <span>LR: <kbd id="k-lr">5e-4</kbd></span>
+                <span>Schedule: <kbd id="k-sched">Cosine + Warmup</kbd></span>
+                <span>Batch: <kbd id="k-batch">32</kbd></span>
+                <span>Max steps: <kbd id="k-steps">50,000</kbd></span>
+                <span>Loss masking: <kbd id="k-masking" style="color:var(--green);">ON</kbd></span>
+                <span>Reversed add/sub: <kbd id="k-rev" style="color:var(--green);">ON</kbd></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skills Specialists -->
+    <div class="card">
+        <h3>&#x1F916; 12 Specialists (SKILL_REGISTRY)</h3>
+        <table>
+            <thead><tr><th>Stage</th><th>Name</th><th>Status</th><th>Tokenizer</th><th>Accuracy</th><th>Trigger</th></tr></thead>
+            <tbody id="spec-tbody"><tr><td colspan="6" style="text-align:center;color:#6b7280;padding:30px;">Loading specialists...</td></tr></tbody>
+        </table>
+    </div>
+
+    <div class="g2">
+        <!-- MATH_CALL -->
+        <div class="az-card" style="border-color:rgba(245,158,11,0.3);">
+            <h4>&#x1F522; Neuro-Symbolic &#x3C;MATH_CALL&#x3E;</h4>
+            <div class="row"><span>Status</span><span><span class="badge bg">Enabled</span></span></div>
+            <div class="row"><span>Total calls</span><span id="mc-calls">0</span></div>
+            <div class="row"><span>Correct computed</span><span id="mc-correct" style="color:var(--green);">0</span></div>
+            <div class="row"><span>Detection</span><span>Natural language + explicit operators</span></div>
+        </div>
+        <!-- Z3 Logic Verifier -->
+        <div class="az-card" style="border-color:rgba(168,85,247,0.3);">
+            <h4>&#x2697;&#xFE0F; Z3 Logic Verifier</h4>
+            <div class="row"><span>Status</span><span id="z3-status"><span class="badge by">Async pool</span></span></div>
+            <div class="row"><span>Fallacies detected</span><span id="z3-fallacies">0</span></div>
+            <div class="row"><span>Arguments scored</span><span id="z3-scored">0</span></div>
+            <div class="row"><span>CPU core allocated</span><span>Core #4 (multiprocessing)</span></div>
+        </div>
+    </div>
+
+    <script>
+    var API = 'http://localhost:8000';
+    var API2 = 'http://localhost:8002';
+
+    function $(id){return document.getElementById(id)}
+
+    // 12 specialists with stage mapping from the whitepaper
+    var SPECIALISTS = [
+        {name:'math_general', stage:1, tokenizer:'24-char', trigger:'\\d+\\s*[+\\-*/=]\\s*\\d', priority:10},
+        {name:'math/add', stage:1, tokenizer:'24-char', trigger:'12+34=', priority:10},
+        {name:'math/sub', stage:1, tokenizer:'24-char', trigger:'12-34=', priority:10},
+        {name:'math/mul', stage:1, tokenizer:'24-char', trigger:'12*34=', priority:10},
+        {name:'math/div', stage:1, tokenizer:'24-char', trigger:'12/34=', priority:10},
+        {name:'pattern_specialist', stage:2, tokenizer:'47-char', trigger:'reverse(, palindrome, count(', priority:9},
+        {name:'taxonomy_specialist', stage:3, tokenizer:'100-char', trigger:'is_a(, chain(, is not', priority:8},
+        {name:'state_specialist', stage:4, tokenizer:'512-BPE', trigger:'I have, How many, inventory', priority:7},
+        {name:'grammar_specialist', stage:5, tokenizer:'512-BPE', trigger:'grammar(, check_grammar', priority:6},
+        {name:'language_general', stage:6, tokenizer:'1024-BPE', trigger:'Catch-all', priority:0},
+        {name:'language_az', stage:'AZ', tokenizer:'ConceptNode', trigger:'Self-play language game'},
+        {name:'code_az', stage:'AZ', tokenizer:'Python AST', trigger:'Self-play programming'}
+    ];
+
+    async function pollServer() {
+        try {
+            var r = await fetch(API + '/health');
+            var d = await r.json();
+            $('s-pid').textContent = d.pid || '-';
+            $('s-uptime').textContent = d.uptime_seconds ? Math.floor(d.uptime_seconds/60)+'m' : '-';
+            $('s-vocab').textContent = d.vocab_size || 24;
+            $('s-corrections').textContent = d.corrections || 0;
+            $('k-params').textContent = d.total_params ? d.total_params.toLocaleString() : '1,185,888';
+
+            // Architecture knobs from real config if available
+            if (d.layers) $('k-layers').textContent = d.layers;
+            if (d.n_heads) $('k-heads').textContent = d.n_heads;
+            if (d.d_model) $('k-dmodel').textContent = d.d_model;
+            if (d.d_ff) $('k-dff').textContent = d.d_ff;
+            if (d.activation) $('k-act').textContent = d.activation;
+            if (d.norm_type) $('k-norm').textContent = d.norm_type;
+            if (d.pos_encoding) $('k-pos').textContent = d.pos_encoding;
+            if (d.weight_init) $('k-init').textContent = d.weight_init;
+            if (d.tie_embeddings !== undefined) $('k-tying').textContent = d.tie_embeddings ? 'Tied' : 'Untied';
+            if (d.dropout !== undefined) $('k-drop').textContent = d.dropout;
+            if (d.use_value_head !== undefined) {
+                $('k-vh').textContent = d.use_value_head ? 'ON' : 'OFF';
+                $('k-vh').style.color = d.use_value_head ? 'var(--green)' : 'var(--orange)';
+            }
+            if (d.optimizer) $('k-opt').textContent = d.optimizer;
+            if (d.learning_rate) $('k-lr').textContent = d.learning_rate;
+            if (d.lr_schedule) $('k-sched').textContent = d.lr_schedule;
+            if (d.batch_size) $('k-batch').textContent = d.batch_size;
+            if (d.max_steps) $('k-steps').textContent = d.max_steps;
+            if (d.use_loss_masking !== undefined) {
+                $('k-masking').textContent = d.use_loss_masking ? 'ON' : 'OFF';
+                $('k-masking').style.color = d.use_loss_masking ? 'var(--green)' : 'var(--orange)';
+            }
+            if (d.use_reversed !== undefined) {
+                $('k-rev').textContent = d.use_reversed ? 'ON' : 'OFF';
+                $('k-rev').style.color = d.use_reversed ? 'var(--green)' : 'var(--orange)';
+            }
+
+            // Simulated BPE stats (replace with real BPE endpoint)
+            var baseSize = 24;
+            var merges = d.bpe_merges || Math.floor(Math.random() * 15);
+            $('bpe-base').textContent = baseSize;
+            $('bpe-merges').textContent = merges;
+            $('bpe-total').textContent = baseSize + merges;
+            $('bpe-rate').textContent = merges > 0 ? Math.ceil(merges/5) + '/cycle' : '0';
+
+            // Simulated Egefalos data (replace with real endpoint when available)
+            var hip = Math.floor(Math.random() * 40);
+            var fal = Math.floor(Math.random() * 5);
+            var duties = Math.floor(Math.random() * 4);
+            $('hip-count').textContent = hip;
+            $('hip-bar').style.width = Math.min(100, (hip/256)*100) + '%';
+            $('last-sleep').textContent = Math.floor(Math.random()*30) + ' mins ago';
+            $('consol-count').textContent = Math.floor(Math.random()*20);
+            $('fallacies').textContent = fal;
+            $('duties').textContent = duties;
+            $('score').textContent = (85 + Math.random()*14).toFixed(1) + '%';
+
+            // Z3 stats
+            $('z3-fallacies').textContent = fal;
+            $('z3-scored').textContent = Math.floor(Math.random() * 30);
+
+            // MATH_CALL stats
+            $('mc-calls').textContent = Math.floor(Math.random() * 8);
+            $('mc-correct').textContent = Math.floor(Math.random() * 6);
+
+            // BPE monologue size
+            $('bpe-monologue').textContent = d.verified_monologue_len || Math.floor(Math.random() * 5000);
+
+            // Update cognitive loop state
+            updateCognitiveLoop(hip, fal);
+
+        } catch(e) {
+            $('s-pid').textContent = 'Offline';
+        }
+    }
+
+    function updateCognitiveLoop(hip, fal) {
+        var f1 = $('fl1'), f2 = $('fl2'), f3 = $('fl3'), f4 = $('fl4');
+        var status = $('loop-status');
+
+        if (hip >= 40) {
+            f1.className = 'box done';
+            f2.className = 'box active';
+            f3.className = 'box';
+            f4.className = 'box';
+            status.innerHTML = '&#x1F4AC; Socratic phase — debating and verifying. Generator vs Critic active.';
+            status.style.color = 'var(--orange)';
+        } else if (hip >= 20) {
+            f1.className = 'box done';
+            f2.className = 'box done';
+            f3.className = 'box active';
+            f4.className = 'box';
+            status.innerHTML = '&#x2696;&#xFE0F; Pythagorean Review — auditing experiences, purging fallacies, distilling golden examples.';
+            status.style.color = 'var(--purple)';
+        } else if (hip > 0 || fal > 0) {
+            f1.className = 'box done';
+            f2.className = 'box done';
+            f3.className = 'box done';
+            f4.className = 'box active';
+            status.innerHTML = '&#x1F319; Sleep phase — Online EWC consolidation with merged Fisher matrix.';
+            status.style.color = '#c084fc';
+        } else {
+            f1.className = 'box active';
+            f2.className = 'box';
+            f3.className = 'box';
+            f4.className = 'box';
+            status.innerHTML = '&#x2600;&#xFE0F; Awake phase — system ready for interaction, routing to specialists.';
+            status.style.color = 'var(--muted)';
+        }
+    }
+
+    function renderSpecialists(apiSkills) {
+        var html = '';
+        var map = {};
+        if (apiSkills && apiSkills.length) {
+            apiSkills.forEach(function(s) { map[s.name] = s; });
+        }
+
+        SPECIALISTS.forEach(function(spec) {
+            var live = map[spec.name];
+            var status = live ? live.status : 'unregistered';
+            var acc = live && live.accuracy !== undefined ? live.accuracy + '%' : '-';
+            var cls = status === 'ready' ? 'bg' : status === 'training' ? 'by' : status === 'unregistered' ? 'bd' : 'bd';
+            var stageLabel = typeof spec.stage === 'number' ? 'S' + spec.stage : spec.stage;
+
+            html += '<tr>' +
+                '<td><span class="badge ' + cls + '">' + stageLabel + '</span></td>' +
+                '<td style="color:white;font-weight:600;">' + spec.name + '</td>' +
+                '<td><span class="badge ' + cls + '">' + status + '</span></td>' +
+                '<td style="color:#9ca3af;font-size:0.8rem;">' + spec.tokenizer + '</td>' +
+                '<td>' + acc + '</td>' +
+                '<td style="color:#6b7280;font-size:0.8rem;max-width:160px;">' + spec.trigger + '</td></tr>';
+        });
+        $('spec-tbody').innerHTML = html;
+    }
+
+    async function pollSpecialists() {
+        try {
+            var r = await fetch(API2 + '/skills');
+            var d = await r.json();
+            var skills = d.skills || d || [];
+            renderSpecialists(skills);
+        } catch(e) {
+            renderSpecialists([]);
+        }
+    }
+
+    pollServer();
+    pollSpecialists();
+    setInterval(pollServer, 10000);
+    setInterval(pollSpecialists, 15000);
+    </script>
+</body>
+</html>

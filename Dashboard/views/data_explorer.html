@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Explorer</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        canvas { width:100%; display:block; border-radius:6px; background:#0a0f1e; }
+        select, button, textarea { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; }
+        button { cursor: pointer; } button:hover { background: #1e293b; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; }
+        .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .help-note { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--muted); }
+        table { width:100%; border-collapse: collapse; font-size:0.78rem; }
+        th { color: var(--muted); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+        td { padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.3); }
+    </style>
+</head>
+<body>
+<h2>&#x1F4CA; Data Explorer</h2>
+
+<div class="g4">
+    <div class="stat-box"><div class="v" id="data-total">-</div><div class="l">Total Samples</div></div>
+    <div class="stat-box"><div class="v" id="data-ops">-</div><div class="l">Operations</div></div>
+    <div class="stat-box"><div class="v" id="data-avg-len">-</div><div class="l">Avg Sequence Len</div></div>
+    <div class="stat-box"><div class="v" id="data-token-dist">-</div><div class="l">Unique Tokens Used</div></div>
+</div>
+
+<div class="tab-bar">
+    <span class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</span>
+    <span class="tab" data-tab="digits" onclick="switchTab('digits')">Digit Distribution</span>
+    <span class="tab" data-tab="ops" onclick="switchTab('ops')">Per-Operation</span>
+    <span class="tab" data-tab="samples" onclick="switchTab('samples')">Sample Browser</span>
+</div>
+
+<div id="tab-overview">
+    <div class="card">
+        <h3>Data Generation Config</h3>
+        <div class="g3">
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Operation</label>
+                <select id="data-op" style="width:100%;margin-top:4px;" onchange="genData()">
+                    <option value="add">Addition (+)</option>
+                    <option value="sub">Subtraction (-)</option>
+                    <option value="mul">Multiplication (x)</option>
+                    <option value="div">Division (/)</option>
+                    <option value="mix">Mixed (all)</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Max Digits</label>
+                <select id="data-digits" style="width:100%;margin-top:4px;" onchange="genData()">
+                    <option value="1">1 digit</option>
+                    <option value="2" selected>1-2 digits</option>
+                    <option value="3">1-3 digits</option>
+                    <option value="4">1-4 digits</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Samples to generate</label>
+                <input type="number" id="data-count" value="5000" min="100" max="50000" step="100" style="width:100%;margin-top:4px;" onchange="genData()">
+            </div>
+        </div>
+        <button onclick="genData()" style="margin-top:10px;">&#x1F504; Generate Dataset</button>
+    </div>
+    <div class="g2">
+        <div class="card">
+            <h3>Operation Distribution</h3>
+            <canvas id="op-dist-canvas" style="height:250px;"></canvas>
+        </div>
+        <div class="card">
+            <h3>Digit Length Distribution</h3>
+            <canvas id="digit-dist-canvas" style="height:250px;"></canvas>
+        </div>
+    </div>
+    <div class="help-note">
+        <strong>Data quality checks:</strong> If one operation has significantly fewer samples, the model may learn it poorly.
+        Very long sequences increase compute cost. Check for class imbalance before training.
+    </div>
+</div>
+
+<div id="tab-digits" style="display:none;">
+    <div class="card">
+        <h3>Digit Frequency per Position</h3>
+        <div class="g2">
+            <div>
+                <h4 style="font-size:0.9rem;color:var(--muted);margin-bottom:8px;">First Operand (a)</h4>
+                <canvas id="digits-a-canvas" style="height:200px;"></canvas>
+            </div>
+            <div>
+                <h4 style="font-size:0.9rem;color:var(--muted);margin-bottom:8px;">Second Operand (b)</h4>
+                <canvas id="digits-b-canvas" style="height:200px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Result Length Distribution</h3>
+        <canvas id="result-len-canvas" style="height:200px;"></canvas>
+    </div>
+    <div class="help-note">
+        <strong>Carry analysis:</strong> If most problems don't need carrying (e.g., 12+11 vs 19+18), the model may fail on carry cases.
+        A good dataset has balanced carry and non-carry examples.
+    </div>
+</div>
+
+<div id="tab-ops" style="display:none;">
+    <div class="card">
+        <h3>Sample Count by Operation</h3>
+        <div id="op-table-wrap"></div>
+    </div>
+    <div class="card">
+        <h3>Sequence Length by Operation</h3>
+        <canvas id="seq-op-canvas" style="height:220px;"></canvas>
+    </div>
+    <div class="help-note">
+        Check that all operations have similar sequence lengths. If one operation produces much longer sequences, it will dominate the compute budget.
+    </div>
+</div>
+
+<div id="tab-samples" style="display:none;">
+    <div class="card">
+        <div class="g2">
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Filter by operation</label>
+                <select id="sample-op" style="width:100%;margin-top:4px;">
+                    <option value="all">All</option>
+                    <option value="add">Addition</option>
+                    <option value="sub">Subtraction</option>
+                    <option value="mul">Multiplication</option>
+                    <option value="div">Division</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Show</label>
+                <select id="sample-count" style="width:100%;margin-top:4px;">
+                    <option value="10">10 samples</option>
+                    <option value="25" selected>25 samples</option>
+                    <option value="50">50 samples</option>
+                    <option value="100">100 samples</option>
+                </select>
+            </div>
+        </div>
+        <div id="samples-table-wrap" style="max-height:500px;overflow-y:auto;"></div>
+    </div>
+</div>
+
+<script>
+var dataset = {samples:[], stats:{}};
+
+function genData() {
+    var op = document.getElementById('data-op').value;
+    var maxDigits = parseInt(document.getElementById('data-digits').value);
+    var count = parseInt(document.getElementById('data-count').value) || 5000;
+
+    var samples = [];
+    var ops = op === 'mix' ? ['add','sub','mul','div'] : [op];
+
+    for (var i = 0; i < count; i++) {
+        var opType = ops[Math.floor(Math.random() * ops.length)];
+        var aLen = 1 + Math.floor(Math.random() * maxDigits);
+        var bLen = 1 + Math.floor(Math.random() * maxDigits);
+        var a = randInt(0, Math.pow(10, aLen) - 1);
+        var b = Math.max(1, randInt(0, Math.pow(10, bLen) - 1));
+
+        var result, text;
+        switch(opType) {
+            case 'add': result = a + b; text = a + '+' + b + '=' + result; break;
+            case 'sub': result = a - b; text = a + '-' + b + '=' + result; break;
+            case 'mul': result = a * b; text = a + 'x' + b + '=' + result; break;
+            case 'div': result = Math.floor(a / b); text = a + '/' + b + '=' + result; break;
+        }
+        samples.push({op: opType, a: a, b: b, result: result, text: text, aLen: aLen, bLen: bLen, seqLen: text.length});
+    }
+
+    dataset.samples = samples;
+
+    // Compute stats
+    var total = samples.length;
+    var opsUsed = {};
+    var seqLens = [];
+    var aLenCount = {}, bLenCount = {};
+    var resultLens = {};
+    var opCounts = {add:0,sub:0,mul:0,div:0};
+
+    for (var i = 0; i < samples.length; i++) {
+        var s = samples[i];
+        opCounts[s.op] = (opCounts[s.op] || 0) + 1;
+        seqLens.push(s.seqLen);
+        aLenCount[s.aLen] = (aLenCount[s.aLen] || 0) + 1;
+        bLenCount[s.bLen] = (bLenCount[s.bLen] || 0) + 1;
+        var rLen = String(Math.abs(s.result)).length;
+        resultLens[rLen] = (resultLens[rLen] || 0) + 1;
+        opsUsed[s.op] = true;
+    }
+
+    var avgLen = seqLens.reduce(function(a,b){return a+b;},0) / seqLens.length;
+
+    dataset.stats = {total: total, opCounts: opCounts, avgLen: avgLen, aLenCount: aLenCount, bLenCount: bLenCount, resultLens: resultLens, opsUsed: Object.keys(opsUsed).length};
+
+    document.getElementById('data-total').textContent = total.toLocaleString();
+    document.getElementById('data-ops').textContent = Object.keys(opCounts).filter(function(k){return opCounts[k]>0;}).length;
+    document.getElementById('data-avg-len').textContent = avgLen.toFixed(1);
+    document.getElementById('data-token-dist').textContent = dataset.stats.opsUsed + ' types';
+
+    drawOpDist(opCounts);
+    drawDigitDist(aLenCount, bLenCount);
+    drawDigitCharts(aLenCount, bLenCount);
+    drawResultLenChart(dataset.stats.resultLens);
+    drawSeqByOp();
+    renderOpTable();
+    renderSamples();
+}
+
+function drawOpDist(opCounts) {
+    var c = document.getElementById('op-dist-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 250 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '250px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var ops = Object.keys(opCounts);
+    var total = ops.reduce(function(s,o){return s+opCounts[o];},0);
+    if (total === 0 || ops.length === 0) return;
+
+    var colors = {add:'#22c55e', sub:'#3b82f6', mul:'#a855f7', div:'#f59e0b'};
+    var labels = {add:'Addition', sub:'Subtraction', mul:'Multiplication', div:'Division'};
+    var barW = Math.min(60, (W-60) / ops.length / 2);
+    var maxVal = Math.max.apply(null, ops.map(function(o){return opCounts[o];}));
+    var plotH = H - 50;
+
+    for (var i = 0; i < ops.length; i++) {
+        var x = 40 + i * (W-60) / ops.length;
+        var h = (opCounts[ops[i]] / maxVal) * plotH;
+        ctx.fillStyle = colors[ops[i]] || '#3b82f6';
+        ctx.fillRect(x, plotH + 15 - h, barW, h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(labels[ops[i]] || ops[i], x + barW/2, plotH + 30);
+        ctx.fillText(opCounts[ops[i]], x + barW/2, plotH + 12 - h);
+    }
+}
+
+function drawDigitDist(aLenCount, bLenCount) {
+    var c = document.getElementById('digit-dist-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 250 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '250px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var allLens = {};
+    for (var k in aLenCount) allLens[k] = true;
+    for (var k in bLenCount) allLens[k] = true;
+    var lens = Object.keys(allLens).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    if (lens.length === 0) return;
+
+    var maxVal = 0;
+    for (var i = 0; i < lens.length; i++) {
+        var v = Math.max(aLenCount[lens[i]]||0, bLenCount[lens[i]]||0);
+        if (v > maxVal) maxVal = v;
+    }
+
+    var plotH = H - 40;
+    var barW = Math.min(40, (W-60) / (lens.length * 2 + 1));
+
+    for (var i = 0; i < lens.length; i++) {
+        var cx = 40 + i * (W-60) / lens.length;
+        var ha = ((aLenCount[lens[i]]||0) / maxVal) * plotH;
+        var hb = ((bLenCount[lens[i]]||0) / maxVal) * plotH;
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(cx - barW, plotH + 10 - ha, barW * 0.8, ha);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(cx + 2, plotH + 10 - hb, barW * 0.8, hb);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(lens[i] + ' digit', cx, plotH + 25);
+    }
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.fillRect(50, 5, 10, 10);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillText('Operand A', 65, 14);
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(140, 5, 10, 10);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText('Operand B', 155, 14);
+}
+
+function drawDigitCharts(aLenCount, bLenCount) {
+    drawSingleDigitChart('digits-a-canvas', aLenCount, '#3b82f6');
+    drawSingleDigitChart('digits-b-canvas', bLenCount, '#22c55e');
+}
+
+function drawSingleDigitChart(id, count, color) {
+    var c = document.getElementById(id);
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 200 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '200px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var keys = Object.keys(count).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    if (keys.length === 0) return;
+    var maxVal = Math.max.apply(null, keys.map(function(k){return count[k];}));
+    var barW = Math.min(40, (W-60) / (keys.length + 1));
+    var plotH = H - 35;
+
+    for (var i = 0; i < keys.length; i++) {
+        var x = 30 + i * (W-30) / keys.length;
+        var h = (count[keys[i]] / maxVal) * plotH;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, plotH - h + 10, barW, h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(keys[i] + ' digit', x + barW/2, plotH + 25);
+    }
+}
+
+function drawResultLenChart(resultLens) {
+    var c = document.getElementById('result-len-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 1060) * 2;
+    c.height = 200 * 2;
+    c.style.width = Math.min(rect.width - 20, 1060) + 'px';
+    c.style.height = '200px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var keys = Object.keys(resultLens).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    if (keys.length === 0) return;
+    var maxVal = Math.max.apply(null, keys.map(function(k){return resultLens[k];}));
+    var barW = Math.min(50, (W-60) / (keys.length + 1));
+    var plotH = H - 35;
+
+    // Carry indicator
+    var carryCount = 0, totalCount = 0;
+    for (var k in resultLens) { carryCount += (parseInt(k) > 1 ? resultLens[k] : 0); totalCount += resultLens[k]; }
+    var carryPct = totalCount > 0 ? (carryCount / totalCount * 100) : 0;
+
+    for (var i = 0; i < keys.length; i++) {
+        var x = 30 + i * (W-30) / keys.length;
+        var h = (resultLens[keys[i]] / maxVal) * plotH;
+        ctx.fillStyle = keys[i] > '2' ? '#a855f7' : '#3b82f6';
+        ctx.fillRect(x, plotH - h + 10, barW, h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(keys[i] + ' digit', x + barW/2, plotH + 25);
+    }
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Results needing carry: ' + carryPct.toFixed(1) + '%', 10, 18);
+}
+
+function drawSeqByOp() {
+    var c = document.getElementById('seq-op-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 1060) * 2;
+    c.height = 220 * 2;
+    c.style.width = Math.min(rect.width - 20, 1060) + 'px';
+    c.style.height = '220px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var opLens = {};
+    for (var i = 0; i < dataset.samples.length; i++) {
+        var s = dataset.samples[i];
+        if (!opLens[s.op]) opLens[s.op] = [];
+        opLens[s.op].push(s.seqLen);
+    }
+
+    var ops = Object.keys(opLens);
+    if (ops.length === 0) return;
+    var avgs = ops.map(function(o) {
+        return opLens[o].reduce(function(a,b){return a+b;},0) / opLens[o].length;
+    });
+    var maxAvg = Math.max.apply(null, avgs) * 1.2 || 1;
+    var colors = {add:'#22c55e', sub:'#3b82f6', mul:'#a855f7', div:'#f59e0b'};
+    var labels = {add:'Addition', sub:'Subtraction', mul:'Multiplication', div:'Division'};
+    var plotH = H - 40;
+    var barW = Math.min(40, (W-60) / (ops.length + 1));
+
+    for (var i = 0; i < ops.length; i++) {
+        var x = 30 + i * (W-30) / ops.length;
+        var h = (avgs[i] / maxAvg) * plotH;
+        ctx.fillStyle = colors[ops[i]] || '#3b82f6';
+        ctx.fillRect(x, plotH - h + 10, barW, h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(labels[ops[i]] || ops[i], x + barW/2, plotH + 25);
+        ctx.fillText(avgs[i].toFixed(1), x + barW/2, plotH + 8 - h);
+    }
+}
+
+function renderOpTable() {
+    var ops = ['add','sub','mul','div'];
+    var labels = {add:'Addition', sub:'Subtraction', mul:'Multiplication', div:'Division'};
+    var html = '<table><thead><tr><th>Operation</th><th>Count</th><th>% of Dataset</th><th>Avg Seq Len</th><th>Balance</th></tr></thead><tbody>';
+    var total = dataset.stats.total;
+    for (var i = 0; i < ops.length; i++) {
+        var c = dataset.stats.opCounts[ops[i]] || 0;
+        var pct = total > 0 ? (c / total * 100) : 0;
+        var balance = pct > 20 && pct < 30 ? '\u2705' : pct > 0 ? '\u26A0\uFE0F' : '\u274C';
+        var seqs = dataset.samples.filter(function(s){return s.op===ops[i];});
+        var avgLen = seqs.length > 0 ? seqs.reduce(function(a,s){return a+s.seqLen;},0)/seqs.length : 0;
+        html += '<tr><td>' + labels[ops[i]] + '</td><td>' + c + '</td><td>' + pct.toFixed(1) + '%</td><td>' + avgLen.toFixed(1) + '</td><td>' + balance + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('op-table-wrap').innerHTML = html;
+}
+
+function renderSamples() {
+    var filter = document.getElementById('sample-op').value;
+    var count = parseInt(document.getElementById('sample-count').value) || 25;
+    var samples = filter === 'all' ? dataset.samples : dataset.samples.filter(function(s){return s.op===filter;});
+    samples = samples.slice(0, count);
+
+    var html = '<table><thead><tr><th>#</th><th>Operation</th><th>Expression</th><th>a</th><th>b</th><th>Result</th></tr></thead><tbody>';
+    for (var i = 0; i < samples.length; i++) {
+        var s = samples[i];
+        html += '<tr><td>' + (i+1) + '</td><td><span class="badge ' + (s.op==='add'?'bg':s.op==='sub'?'':s.op==='mul'?'bp':'by') + '">' + s.op + '</span></td><td style="font-family:monospace;">' + s.text + '</td><td>' + s.a + '</td><td>' + s.b + '</td><td>' + s.result + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('samples-table-wrap').innerHTML = html;
+}
+
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelector('.tab[data-tab="' + name + '"]').classList.add('active');
+    ['overview','digits','ops','samples'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none';
+    });
+    setTimeout(genData, 50);
+}
+
+document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
+});
+
+document.getElementById('sample-op').addEventListener('change', renderSamples);
+document.getElementById('sample-count').addEventListener('change', renderSamples);
+
+setTimeout(genData, 200);
+</script>
+</body>
+</html>

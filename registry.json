@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "add_L4_d128_20260612_101014",
+    "operation": "add",
+    "accuracy": 26.0,
+    "n_layers": 4,
+    "d_model": 128,
+    "params": 1061056,
+    "zip_path": "exports\\add_L4_d128_20260612_101014.zip",
+    "zip_size_kb": 3850,
+    "timestamp": "20260612_101014"
+  }
+]

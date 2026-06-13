@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Analysis Dashboard</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        canvas { width:100%; display:block; border-radius:6px; background:#0a0f1e; }
+        select, button { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+        button:hover { background: #1e293b; } button:active { background: var(--accent); }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; }
+        .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .help-note { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--muted); }
+        table { width:100%; border-collapse: collapse; font-size:0.78rem; }
+        th { color: var(--muted); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+        td { padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.3); }
+        .warn { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.85rem; }
+        .warn-ok { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
+    </style>
+</head>
+<body>
+<h2>&#x1F50D; Error Analysis</h2>
+
+<div class="g4">
+    <div class="stat-box"><div class="v" id="err-accuracy" style="color:var(--orange);">-</div><div class="l">Overall Accuracy</div></div>
+    <div class="stat-box"><div class="v" id="err-correct">-</div><div class="l">Correct</div></div>
+    <div class="stat-box"><div class="v" id="err-wrong">-</div><div class="l">Wrong</div></div>
+    <div class="stat-box"><div class="v" id="err-bias">-</div><div class="l">Avg Error Magnitude</div></div>
+</div>
+
+<div class="tab-bar">
+    <span class="tab active" data-tab="breakdown" onclick="switchTab('breakdown')">Error Breakdown</span>
+    <span class="tab" data-tab="byop" onclick="switchTab('byop')">By Operation</span>
+    <span class="tab" data-tab="bydigits" onclick="switchTab('bydigits')">By Digit Length</span>
+    <span class="tab" data-tab="examples" onclick="switchTab('examples')">Error Examples</span>
+</div>
+
+<div id="tab-breakdown">
+    <div class="card">
+        <h3>Error Patterns</h3>
+        <div id="error-patterns"></div>
+    </div>
+    <div class="g2">
+        <div class="card">
+            <h3>Accuracy by Operation</h3>
+            <canvas id="op-acc-canvas" style="height:250px;"></canvas>
+        </div>
+        <div class="card">
+            <h3>Error Distribution</h3>
+            <canvas id="error-dist-canvas" style="height:250px;"></canvas>
+        </div>
+    </div>
+    <div class="help-note">
+        <strong>Common error patterns:</strong> If accuracy drops sharply with digit length, the model may have trouble with Causal-Carry Mismatch.
+        If specific operations are much worse, check data balance and reversed-digit encoding.
+    </div>
+</div>
+
+<div id="tab-byop" style="display:none;">
+    <div class="card">
+        <h3>Per-Operation Performance</h3>
+        <div id="op-performance"></div>
+    </div>
+    <div class="help-note">
+        Low accuracy on one operation suggests: (1) not enough training data for that op, (2) the op is inherently harder (multiplication > addition),
+        (3) Causal-Carry Mismatch affects it more. Check max digit lengths per op.
+    </div>
+</div>
+
+<div id="tab-bydigits" style="display:none;">
+    <div class="card">
+        <h3>Accuracy by Digit Length</h3>
+        <div class="g2">
+            <div>
+                <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:6px;">Operand A Digit Length</h4>
+                <canvas id="digits-op-a-canvas" style="height:200px;"></canvas>
+            </div>
+            <div>
+                <h4 style="font-size:0.85rem;color:var(--muted);margin-bottom:6px;">Operand B Digit Length</h4>
+                <canvas id="digits-op-b-canvas" style="height:200px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Carry Analysis</h3>
+        <div id="carry-analysis"></div>
+    </div>
+</div>
+
+<div id="tab-examples" style="display:none;">
+    <div class="card">
+        <div class="g2">
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Show:</label>
+                <select id="err-filter" onchange="renderErrors()" style="width:100%;margin-top:4px;">
+                    <option value="all">All errors</option>
+                    <option value="add">Addition errors</option>
+                    <option value="sub">Subtraction errors</option>
+                    <option value="mul">Multiplication errors</option>
+                    <option value="div">Division errors</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem;color:var(--muted);">Max digits:</label>
+                <select id="err-digits" onchange="simulateErrors()" style="width:100%;margin-top:4px;">
+                    <option value="1">1 digit</option>
+                    <option value="2" selected>1-2 digits</option>
+                    <option value="3">1-3 digits</option>
+                </select>
+            </div>
+        </div>
+        <button onclick="simulateErrors()" style="margin-bottom:10px;">&#x1F504; Re-run Error Analysis</button>
+        <div id="error-examples-wrap" style="max-height:500px;overflow-y:auto;"></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Simulation Settings</h3>
+    <div class="g3">
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Simulated accuracy</label>
+            <input type="range" id="sim-acc" min="5" max="95" value="42" oninput="simulateErrors()" style="width:100%;">
+            <span id="sim-acc-val">42%</span>
+        </div>
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Test samples</label>
+            <input type="number" id="sim-count" value="2000" min="100" max="10000" step="100" oninput="simulateErrors()" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Max digits</label>
+            <select id="sim-md" onchange="simulateErrors()" style="width:100%;margin-top:4px;">
+                <option value="1">1 digit</option>
+                <option value="2" selected>1-2 digits</option>
+                <option value="3">1-3 digits</option>
+                <option value="4">1-4 digits</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<script>
+var errorData = null;
+
+function simulateErrors() {
+    var accuracy = parseInt(document.getElementById('sim-acc').value) / 100;
+    document.getElementById('sim-acc-val').textContent = (accuracy * 100).toFixed(0) + '%';
+    var count = parseInt(document.getElementById('sim-count').value) || 2000;
+    var maxDigits = parseInt(document.getElementById('sim-md').value);
+
+    var results = {correct:0, wrong:0, byOp:{add:{c:0,w:0},sub:{c:0,w:0},mul:{c:0,w:0},div:{c:0,w:0}},
+        byALen:{}, byBLen:{}, errors:[]};
+    var ops = ['add','sub','mul','div'];
+
+    for (var i = 0; i < count; i++) {
+        var op = ops[i % 4];
+        var aLen = 1 + Math.floor(Math.random() * maxDigits);
+        var bLen = 1 + Math.floor(Math.random() * maxDigits);
+        var a = randInt(0, Math.pow(10, aLen) - 1);
+        var b = Math.max(1, randInt(0, Math.pow(10, bLen) - 1));
+
+        var correctResult, wrongResult;
+        switch(op) {
+            case 'add': correctResult = a + b; wrongResult = a + b + randInt(-2, 2); break;
+            case 'sub': correctResult = a - b; wrongResult = a - b + randInt(-2, 2); break;
+            case 'mul': correctResult = a * b; wrongResult = a * b + randInt(-5, 5); break;
+            case 'div': correctResult = Math.floor(a / b); wrongResult = Math.max(0, correctResult + randInt(-1, 1)); break;
+        }
+
+        // Accuracy varies by digit length (longer = harder)
+        var lenFactor = Math.pow(0.85, (aLen + bLen) / 2 - 1);
+        var probCorrect = accuracy * lenFactor;
+        var isCorrect = Math.random() < probCorrect;
+
+        if (!results.byALen[aLen]) results.byALen[aLen] = {c:0,w:0};
+        if (!results.byBLen[bLen]) results.byBLen[bLen] = {c:0,w:0};
+
+        if (isCorrect) {
+            results.correct++;
+            results.byOp[op].c++;
+            results.byALen[aLen].c++;
+            results.byBLen[bLen].c++;
+        } else {
+            results.wrong++;
+            results.byOp[op].w++;
+            results.byALen[aLen].w++;
+            results.byBLen[bLen].w++;
+            results.errors.push({
+                op: op, a: a, b: b, aLen: aLen, bLen: bLen,
+                correct: correctResult, predicted: wrongResult,
+                text: a + (op==='add'?'+':op==='sub'?'-':op==='mul'?'x':'/') + b + '=' + (isCorrect ? correctResult : wrongResult)
+            });
+        }
+    }
+
+    errorData = results;
+    updateUI();
+}
+
+function updateUI() {
+    if (!errorData) return;
+    var total = errorData.correct + errorData.wrong;
+    var acc = total > 0 ? (errorData.correct / total * 100) : 0;
+    document.getElementById('err-accuracy').textContent = acc.toFixed(1) + '%';
+    document.getElementById('err-correct').textContent = errorData.correct;
+    document.getElementById('err-wrong').textContent = errorData.wrong;
+
+    if (errorData.errors.length > 0) {
+        var magSum = 0;
+        for (var i = 0; i < errorData.errors.length; i++) {
+            magSum += Math.abs(errorData.errors[i].correct - errorData.errors[i].predicted);
+        }
+        document.getElementById('err-bias').textContent = (magSum / errorData.errors.length).toFixed(1);
+    }
+
+    drawOpAccChart();
+    drawErrorDistChart();
+    renderPatterns();
+    renderOpPerformance();
+    renderCarryAnalysis();
+    renderErrors();
+    drawDigitsByLen();
+}
+
+function drawOpAccChart() {
+    var c = document.getElementById('op-acc-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 250 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '250px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var ops = ['add','sub','mul','div'];
+    var labels = {add:'+', sub:'-', mul:'x', div:'/'};
+    var colors = {add:'#22c55e', sub:'#3b82f6', mul:'#a855f7', div:'#f59e0b'};
+    var plotH = H - 35;
+    var barW = Math.min(50, (W-60) / (ops.length + 1));
+
+    for (var i = 0; i < ops.length; i++) {
+        var d = errorData.byOp[ops[i]];
+        var total = d.c + d.w;
+        var acc = total > 0 ? (d.c / total * 100) : 0;
+        var x = 30 + i * (W-30) / ops.length;
+        var h = (acc / 100) * plotH;
+        ctx.fillStyle = colors[ops[i]];
+        ctx.fillRect(x, plotH - h + 10, barW, h);
+        ctx.fillStyle = acc < 40 ? '#ef4444' : acc < 70 ? '#f59e0b' : '#22c55e';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(acc.toFixed(1) + '%', x + barW/2, plotH + 8 - h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(labels[ops[i]], x + barW/2, plotH + 28);
+    }
+}
+
+function drawErrorDistChart() {
+    var c = document.getElementById('error-dist-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 250 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '250px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var ops = ['add','sub','mul','div'];
+    var labels = {add:'+', sub:'-', mul:'x', div:'/'};
+    var colors = {add:'#22c55e', sub:'#3b82f6', mul:'#a855f7', div:'#f59e0b'};
+    var totalErrors = errorData.wrong || 1;
+    var plotH = H - 35;
+    var barW = Math.min(50, (W-60) / (ops.length + 1));
+
+    for (var i = 0; i < ops.length; i++) {
+        var d = errorData.byOp[ops[i]];
+        var errCount = d.w;
+        var x = 30 + i * (W-30) / ops.length;
+        var h = (errCount / totalErrors) * plotH;
+        ctx.fillStyle = colors[ops[i]];
+        ctx.fillRect(x, plotH - h + 10, barW, h);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(errCount, x + barW/2, plotH + 8 - h);
+        ctx.fillText(labels[ops[i]] + ' (' + (errCount/totalErrors*100).toFixed(0) + '%)', x + barW/2, plotH + 28);
+    }
+}
+
+function renderPatterns() {
+    var div = document.getElementById('error-patterns');
+    var patterns = [];
+
+    // Check carry issue
+    var addData = errorData.byOp.add;
+    var addErrRate = addData.c + addData.w > 0 ? addData.w / (addData.c + addData.w) : 0;
+    if (addErrRate > 0.5) patterns.push({type:'warn', text:'Addition error rate is ' + (addErrRate*100).toFixed(0) + '%. Likely Causal-Carry Mismatch — try reversed digits and loss masking.'});
+
+    // Check mult difficulty
+    var mulData = errorData.byOp.mul;
+    var mulErrRate = mulData.c + mulData.w > 0 ? mulData.w / (mulData.c + mulData.w) : 0;
+    if (mulErrRate > 0.6) patterns.push({type:'warn', text:'Multiplication error rate is ' + (mulErrRate*100).toFixed(0) + '%. Multiplication is inherently harder — consider reducing max digits for mul.'});
+
+    // Check digit length sensitivity
+    var aLens = Object.keys(errorData.byALen).sort(function(a,b){return parseInt(a)-parseInt(b);});
+    var prevAcc = 100;
+    for (var i = 0; i < aLens.length; i++) {
+        var d = errorData.byALen[aLens[i]];
+        var t = d.c + d.w;
+        var a = t > 0 ? d.c / t * 100 : 0;
+        if (i > 0 && a < prevAcc * 0.7) {
+            patterns.push({type:'warn', text:'Sharp accuracy drop at ' + aLens[i] + ' digits (' + a.toFixed(0) + '% vs ' + prevAcc.toFixed(0) + '% prev). Model may struggle with longer sequences.'});
+            break;
+        }
+        prevAcc = a;
+    }
+
+    // Overall
+    var overallAcc = (errorData.correct / (errorData.correct + errorData.wrong)) * 100;
+    if (overallAcc > 80) patterns.unshift({type:'ok', text:'Overall accuracy ' + overallAcc.toFixed(1) + '% — model is performing well.'});
+    else if (overallAcc > 50) patterns.unshift({type:'warn', text:'Overall accuracy ' + overallAcc.toFixed(1) + '% — improving but needs more training.'});
+    else patterns.unshift({type:'warn', text:'Overall accuracy ' + overallAcc.toFixed(1) + '% — model needs significant improvement. Check: data format, reversed digits, loss masking, model capacity.'});
+
+    var html = '';
+    for (var i = 0; i < patterns.length; i++) {
+        var cls = patterns[i].type === 'ok' ? 'warn-ok' : 'warn';
+        html += '<div class="' + cls + '">' + patterns[i].text + '</div>';
+    }
+    div.innerHTML = html;
+}
+
+function renderOpPerformance() {
+    var ops = ['add','sub','mul','div'];
+    var labels = {add:'Addition', sub:'Subtraction', mul:'Multiplication', div:'Division'};
+    var html = '<table><thead><tr><th>Operation</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Status</th></tr></thead><tbody>';
+    for (var i = 0; i < ops.length; i++) {
+        var d = errorData.byOp[ops[i]];
+        var total = d.c + d.w;
+        var acc = total > 0 ? (d.c / total * 100) : 0;
+        var status = acc > 80 ? '\u2705' : acc > 50 ? '\u26A0\uFE0F' : '\u274C';
+        html += '<tr><td>' + labels[ops[i]] + '</td><td>' + d.c + '</td><td>' + d.w + '</td><td>' + acc.toFixed(1) + '%</td><td>' + status + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById('op-performance').innerHTML = html;
+}
+
+function renderCarryAnalysis() {
+    var div = document.getElementById('carry-analysis');
+    var carryCorrect = 0, carryTotal = 0;
+    var noCarryCorrect = 0, noCarryTotal = 0;
+
+    for (var i = 0; i < errorData.errors.length; i++) {
+        var e = errorData.errors[i];
+        // Simple carry heuristic: if both operands have 2+ digits with high last digits
+        var needsCarry = (e.a % 10) + (e.b % 10) >= 10;
+        if (needsCarry) { carryTotal++; if (e.correct === e.predicted) carryCorrect++; }
+        else { noCarryTotal++; if (e.correct === e.predicted) noCarryCorrect++; }
+    }
+
+    var carryAcc = carryTotal > 0 ? (carryCorrect / carryTotal * 100) : 0;
+    var noCarryAcc = noCarryTotal > 0 ? (noCarryCorrect / noCarryTotal * 100) : 0;
+
+    div.innerHTML =
+        '<div class="g2"><div class="card" style="padding:12px;"><div style="font-size:0.7rem;color:var(--muted);">Carry cases</div><strong>' + carryTotal + '</strong> samples, <strong style="color:' + (carryAcc > 50 ? '#22c55e' : '#ef4444') + ';">' + carryAcc.toFixed(1) + '%</strong> accuracy</div>' +
+        '<div class="card" style="padding:12px;"><div style="font-size:0.7rem;color:var(--muted);">Non-carry cases</div><strong>' + noCarryTotal + '</strong> samples, <strong style="color:' + (noCarryAcc > 50 ? '#22c55e' : '#ef4444') + ';">' + noCarryAcc.toFixed(1) + '%</strong> accuracy</div></div>' +
+        '<div class="help-note"><strong>Carry gap:</strong> ' + Math.abs(carryAcc - noCarryAcc).toFixed(1) + '% — ' +
+        (carryAcc < noCarryAcc ? 'Carry cases are harder. This is the Causal-Carry Mismatch. Use reversed digits + loss masking to fix.' : 'No significant carry gap.') + '</div>';
+}
+
+function renderErrors() {
+    var filter = document.getElementById('err-filter').value;
+    var wrap = document.getElementById('error-examples-wrap');
+    if (!errorData) { wrap.innerHTML = '<div style="color:var(--muted);">Run error analysis first.</div>'; return; }
+
+    var errors = filter === 'all' ? errorData.errors : errorData.errors.filter(function(e){return e.op===filter;});
+    errors = errors.slice(0, 50);
+
+    if (errors.length === 0) { wrap.innerHTML = '<div style="color:var(--muted);">No errors to show for this filter.</div>'; return; }
+
+    var html = '<table><thead><tr><th>#</th><th>Op</th><th>Expression</th><th>Correct</th><th>Predicted</th><th>Diff</th></tr></thead><tbody>';
+    for (var i = 0; i < errors.length; i++) {
+        var e = errors[i];
+        var diff = Math.abs(e.correct - e.predicted);
+        html += '<tr><td>' + (i+1) + '</td><td>' + e.op + '</td><td style="font-family:monospace;">' + e.a + (e.op==='add'?'+':e.op==='sub'?'-':e.op==='mul'?'x':'/') + e.b + '</td><td style="color:#22c55e;">' + e.correct + '</td><td style="color:#ef4444;">' + e.predicted + '</td><td>' + diff + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+}
+
+function drawDigitsByLen() {
+    ['a','b'].forEach(function(which) {
+        var id = which === 'a' ? 'digits-op-a-canvas' : 'digits-op-b-canvas';
+        var data = which === 'a' ? errorData.byALen : errorData.byBLen;
+        var c = document.getElementById(id);
+        var rect = c.parentElement.getBoundingClientRect();
+        c.width = Math.min(rect.width - 20, 500) * 2;
+        c.height = 200 * 2;
+        c.style.width = Math.min(rect.width - 20, 500) + 'px';
+        c.style.height = '200px';
+        var ctx = c.getContext('2d');
+        ctx.scale(2,2);
+        var W = c.width/2, H = c.height/2;
+        ctx.fillStyle = '#0a0f1e';
+        ctx.fillRect(0,0,W,H);
+
+        var keys = Object.keys(data).sort(function(a,b){return parseInt(a)-parseInt(b);});
+        if (keys.length === 0) return;
+        var plotH = H - 35;
+        var barW = Math.min(40, (W-60) / (keys.length + 1));
+
+        for (var i = 0; i < keys.length; i++) {
+            var d = data[keys[i]];
+            var total = d.c + d.w;
+            var acc = total > 0 ? d.c / total * 100 : 0;
+            var x = 30 + i * (W-30) / keys.length;
+            var h = (acc / 100) * plotH;
+            ctx.fillStyle = acc > 70 ? '#22c55e' : acc > 40 ? '#f59e0b' : '#ef4444';
+            ctx.fillRect(x, plotH - h + 10, barW, h);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(keys[i] + ' digit (' + total + ')', x + barW/2, plotH + 28);
+            ctx.fillText(acc.toFixed(0) + '%', x + barW/2, plotH + 8 - h);
+        }
+    });
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelector('.tab[data-tab="' + name + '"]').classList.add('active');
+    ['breakdown','byop','bydigits','examples'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none';
+    });
+    setTimeout(updateUI, 50);
+}
+
+document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
+});
+
+function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+setTimeout(simulateErrors, 200);
+</script>
+</body>
+</html>

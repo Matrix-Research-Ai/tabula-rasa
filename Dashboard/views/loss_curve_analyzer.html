@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loss Curve Analyzer</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+        canvas { width: 100%; height: 380px; display: block; border-radius: 8px; background: #0a0f1e; }
+        select, button { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+        button:hover { background: #1e293b; } button:active { background: var(--accent); }
+        .warn { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; }
+        .warn-ok { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; }
+        .tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; }
+        .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.75rem; margin: 8px 0; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .help-note { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--muted); }
+        .annot-list { list-style: none; }
+        .annot-list li { padding: 6px 0; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; }
+        .annot-list li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+<h2>&#x1F4C8; Loss Curve Analyzer</h2>
+
+<div class="g3">
+    <div class="stat-box"><div class="v" id="stat-loss">-</div><div class="l">Latest Loss</div></div>
+    <div class="stat-box"><div class="v" id="stat-best">-</div><div class="l">Best Loss</div></div>
+    <div class="stat-box"><div class="v" id="stat-steps">-</div><div class="l">Total Steps</div></div>
+</div>
+
+<div class="tab-bar">
+    <span class="tab active" data-tab="train" onclick="switchTab('train')">Training Loss</span>
+    <span class="tab" data-tab="eval" onclick="switchTab('eval')">Eval Accuracy</span>
+    <span class="tab" data-tab="compare" onclick="switchTab('compare')">Run Comparison</span>
+    <span class="tab" data-tab="diagnose" onclick="switchTab('diagnose')">Diagnostics</span>
+</div>
+
+<div id="tab-train">
+    <div class="card" style="padding:10px;">
+        <canvas id="loss-canvas"></canvas>
+    </div>
+    <div class="help-note">
+        <strong>Reading the curve:</strong> Loss should decrease smoothly. Plateaus may indicate: learning rate too low, wrong init, or data issue.
+        Spikes suggest gradient explosion or bad batch. Flat loss near start = untrained model is expected.
+    </div>
+</div>
+
+<div id="tab-eval" style="display:none;">
+    <div class="card" style="padding:10px;">
+        <canvas id="eval-canvas"></canvas>
+    </div>
+    <div class="g4">
+        <div class="stat-box"><div class="v" id="eval-latest">-</div><div class="l">Latest Eval</div></div>
+        <div class="stat-box"><div class="v" id="eval-best">-</div><div class="l">Best Eval</div></div>
+        <div class="stat-box"><div class="v" id="eval-gap">-</div><div class="l">Train-Eval Gap</div></div>
+        <div class="stat-box"><div class="v" id="eval-samples">-</div><div class="l">Eval Samples</div></div>
+    </div>
+</div>
+
+<div id="tab-compare" style="display:none;">
+    <div class="card">
+        <div class="g3" style="margin-bottom:10px;">
+            <select id="run-a"><option value="">Run A (current)</option></select>
+            <select id="run-b"><option value="">Run B (compare)</option></select>
+            <button onclick="loadComparison()">Compare</button>
+        </div>
+        <div class="help-note">
+            Load training logs from different runs to compare. Drag-drop a <code>training.log</code> file onto this page, or paste its content below.
+        </div>
+    </div>
+    <div class="card" style="padding:10px;">
+        <canvas id="compare-canvas"></canvas>
+    </div>
+</div>
+
+<div id="tab-diagnose" style="display:none;">
+    <div class="card">
+        <div id="diag-list"></div>
+        <div id="diag-hist" style="margin-top: 14px;">
+            <h3>Loss Distribution</h3>
+            <canvas id="hist-canvas" style="height:200px;"></canvas>
+        </div>
+        <div id="diag-tips" style="margin-top:14px;">
+            <h3>Common Transformer Issues</h3>
+            <ul class="annot-list" style="font-size:0.85rem;">
+                <li style="--c:#ef4444;"><span style="background:#ef4444;width:6px;height:6px;border-radius:50%;display:inline-block;"></span> <strong>NaN/Inf loss</strong> &mdash; Gradient explosion, bad init, or lr too high. Reduce lr, add gradient clipping, check for log(0)</li>
+                <li style="--c:#f59e0b;"><span style="background:#f59e0b;width:6px;height:6px;border-radius:50%;display:inline-block;"></span> <strong>Loss plateau &gt; 20%</strong> &mdash; Wrong max_digits, reversed digits off, or Causal-Carry Mismatch. Check data format and model capacity.</li>
+                <li style="--c:#3b82f6;"><span style="background:#3b82f6;width:6px;height:6px;border-radius:50%;display:inline-block;"></span> <strong>Slow convergence</strong> &mdash; LR too low, batch size too small, or insufficient warmup steps.</li>
+                <li style="--c:#a855f7;"><span style="background:#a855f7;width:6px;height:6px;border-radius:50%;display:inline-block;"></span> <strong>Oscillating loss</strong> &mdash; LR too high (loss bounces) or batch noise (batch size too small for task complexity).</li>
+                <li style="--c:#22c55e;"><span style="background:#22c55e;width:6px;height:6px;border-radius:50%;display:inline-block;"></span> <strong>Sudden drop</strong> &mdash; Model found a good feature. Normal and expected. If followed by flat plateau, capacity may be saturated.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Log Data</h3>
+    <div class="g2">
+        <div>
+            <label style="font-size:0.8rem;color:var(--muted);">Paste training log (or it auto-loads from /training-progress)</label>
+            <textarea id="log-input" rows="6" style="width:100%;background:#0f172a;border:1px solid var(--border);color:white;border-radius:6px;padding:8px;font-family:monospace;font-size:0.75rem;margin-top:6px;"></textarea>
+        </div>
+        <div>
+            <label style="font-size:0.8rem;color:var(--muted);">Manual step override</label>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+                <input id="manual-step" type="number" value="0" style="flex:1;background:#0f172a;border:1px solid var(--border);color:white;border-radius:6px;padding:6px;">
+                <input id="manual-loss" type="number" step="0.01" value="2.0" style="flex:1;background:#0f172a;border:1px solid var(--border);color:white;border-radius:6px;padding:6px;">
+                <button onclick="addManualPoint()">Add Point</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var API = 'http://localhost:8000';
+var lossData = []; var evalData = []; var smoothData = [];
+
+// Parse log content
+function parseLog(text) {
+    var train = [], evalPts = [];
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var l = lines[i].trim();
+        // Try: step X, loss Y, acc Z%
+        var m = l.match(/step[:\s]+(\d+)[,\s]+loss[:\s]+([\d.]+)/i);
+        if (m) {
+            train.push({step: parseInt(m[1]), loss: parseFloat(m[2])});
+        }
+        // Try: eval: acc X% or accuracy X
+        var m2 = l.match(/eval[:\s]*.*?acc(?:uracy)?[:\s]+([\d.]+)/i);
+        if (m2) {
+            var stepMatch = l.match(/step[:\s]+(\d+)/i);
+            var s = stepMatch ? parseInt(stepMatch[1]) : (train.length > 0 ? train[train.length-1].step : 0);
+            evalPts.push({step: s, acc: parseFloat(m2[1])});
+        }
+        // "step 2000 | accuracy: 9.00%"
+        var m3 = l.match(/(\d+)\s*\|\s*accuracy:\s*([\d.]+)/i);
+        if (m3) evalPts.push({step: parseInt(m3[1]), acc: parseFloat(m3[2])});
+    }
+    return {train: train, eval: evalPts};
+}
+
+function smoothArray(arr, window) {
+    if (arr.length < window) return arr.slice();
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+        var sum = 0, count = 0;
+        var half = Math.floor(window/2);
+        for (var j = Math.max(0, i-half); j < Math.min(arr.length, i+half+1); j++) {
+            if (arr[j] !== undefined && arr[j] !== null && !isNaN(arr[j])) {
+                sum += arr[j]; count++;
+            }
+        }
+        result.push(count > 0 ? sum / count : 0);
+    }
+    return result;
+}
+
+function drawLossCanvas() {
+    var c = document.getElementById('loss-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 1060) * 2;
+    c.height = 380 * 2;
+    c.style.width = Math.min(rect.width - 20, 1060) + 'px';
+    c.style.height = '380px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0, 0, W, H);
+
+    if (lossData.length === 0) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No training data yet. Start training or paste a log.', W/2, H/2);
+        return;
+    }
+
+    var steps = lossData.map(function(d) { return d.step; });
+    var vals = lossData.map(function(d) { return d.loss; });
+    var minStep = steps[0], maxStep = steps[steps.length-1];
+    var minVal = Math.min.apply(null, vals);
+    var maxVal = Math.max.apply(null, vals);
+    var range = maxVal - minVal;
+    var pad = range * 0.15 || 0.5;
+    var yMin = Math.max(0, minVal - pad);
+    var yMax = maxVal + pad;
+
+    var plotL = 70, plotR = W - 20, plotT = 20, plotB = H - 30;
+    var plotW = plotR - plotL, plotH = plotB - plotT;
+
+    function sx(v) { return plotL + (v - minStep) / (maxStep - minStep) * plotW; }
+    function sy(v) { return plotT + (1 - (v - yMin) / (yMax - yMin)) * plotH; }
+
+    // Grid
+    ctx.strokeStyle = 'rgba(51,65,85,0.5)';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+        var y = plotT + i * plotH / 4;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText((yMax - i * (yMax - yMin) / 4).toFixed(2), plotL - 6, y + 4);
+    }
+    for (var i = 0; i <= 5; i++) {
+        var x = plotL + i * plotW / 5;
+        var s = Math.round(minStep + i * (maxStep - minStep) / 5);
+        ctx.beginPath(); ctx.moveTo(x, plotT); ctx.lineTo(x, plotB); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.toLocaleString(), x, plotB + 14);
+    }
+
+    // Smooth line
+    smoothData = smoothArray(vals, 11);
+    ctx.beginPath();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    for (var i = 0; i < steps.length; i++) {
+        var x = sx(steps[i]), y = sy(smoothData[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Raw dots (subsampled)
+    ctx.fillStyle = 'rgba(59,130,246,0.3)';
+    var skip = Math.max(1, Math.floor(steps.length / 200));
+    for (var i = 0; i < steps.length; i += skip) {
+        ctx.beginPath();
+        ctx.arc(sx(steps[i]), sy(vals[i]), 1.5, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    // Latest point
+    var last = lossData[lossData.length-1];
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.arc(sx(last.step), sy(last.loss), 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Step ' + last.step.toLocaleString() + ' | Loss ' + last.loss.toFixed(4), sx(last.step) + 10, sy(last.loss) + 4);
+
+    // Labels
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Step', W/2, H - 4);
+    ctx.save();
+    ctx.translate(14, H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('Loss', 0, 0);
+    ctx.restore();
+}
+
+function drawEvalCanvas() {
+    var c = document.getElementById('eval-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 1060) * 2;
+    c.height = 380 * 2;
+    c.style.width = Math.min(rect.width - 20, 1060) + 'px';
+    c.style.height = '380px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0, 0, W, H);
+
+    if (evalData.length === 0) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No eval data yet. Runs at model checkpoint intervals.', W/2, H/2);
+        return;
+    }
+
+    var steps = evalData.map(function(d) { return d.step; });
+    var accs = evalData.map(function(d) { return d.acc; });
+    var minStep = steps[0], maxStep = steps[steps.length-1];
+    var maxAcc = Math.max.apply(null, accs);
+    var yMax = Math.min(100, maxAcc * 1.3);
+
+    var plotL = 70, plotR = W - 20, plotT = 20, plotB = H - 30;
+    var plotW = plotR - plotL, plotH = plotB - plotT;
+
+    function sx(v) { return plotL + (v - minStep) / (maxStep - minStep) * plotW; }
+    function sy(v) { return plotT + (1 - v / yMax) * plotH; }
+
+    ctx.strokeStyle = 'rgba(51,65,85,0.5)';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+        var y = plotT + i * plotH / 4;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(yMax - i * yMax / 4) + '%', plotL - 6, y + 4);
+    }
+    for (var i = 0; i <= 5; i++) {
+        var x = plotL + i * plotW / 5;
+        var s = Math.round(minStep + i * (maxStep - minStep) / 5);
+        ctx.beginPath(); ctx.moveTo(x, plotT); ctx.lineTo(x, plotB); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.toLocaleString(), x, plotB + 14);
+    }
+
+    // Line connecting eval points
+    ctx.beginPath();
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 2;
+    for (var i = 0; i < steps.length; i++) {
+        var x = sx(steps[i]), y = sy(accs[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Dots
+    for (var i = 0; i < steps.length; i++) {
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(sx(steps[i]), sy(accs[i]), 5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = '#f1f5f9';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(accs[i].toFixed(1) + '%', sx(steps[i]), sy(accs[i]) - 10);
+    }
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Step', W/2, H - 4);
+    ctx.save();
+    ctx.translate(14, H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('Accuracy (%)', 0, 0);
+    ctx.restore();
+}
+
+function runDiagnostics() {
+    var div = document.getElementById('diag-list');
+    div.innerHTML = '';
+    var issues = [];
+
+    if (lossData.length === 0) {
+        div.innerHTML = '<div class="warn">No data to analyze. Start training or load a log.</div>';
+        return;
+    }
+
+    var vals = lossData.map(function(d) { return d.loss; });
+
+    // Check for NaN/Inf
+    var hasNaN = vals.some(function(v) { return isNaN(v) || !isFinite(v); });
+    if (hasNaN) issues.push({type:'error', text:'NaN or Infinity detected in loss values! Check learning rate, initialize weights properly, ensure no log(0).'});
+
+    // Check final plateau
+    if (lossData.length >= 50) {
+        var recent = vals.slice(-50);
+        var recentAvg = recent.reduce(function(a,b) { return a+b; }, 0) / recent.length;
+        var firstRecent = recent[0];
+        var plateauPct = Math.abs(recentAvg - firstRecent) / Math.max(firstRecent, 0.001) * 100;
+        if (plateauPct < 2 && recentAvg > 0.5) {
+            issues.push({type:'warn', text:'Loss plateau detected (changed <2% over last 50 steps). Model may have saturated or LR is too low for current capacity.'});
+        }
+    }
+
+    // Check for spikes
+    if (lossData.length >= 10) {
+        var mean = vals.reduce(function(a,b) { return a+b; }, 0) / vals.length;
+        var std = Math.sqrt(vals.map(function(v) { return (v-mean)*(v-mean); }).reduce(function(a,b) { return a+b; },0)/vals.length);
+        for (var i = 1; i < vals.length; i++) {
+            if (Math.abs(vals[i] - vals[i-1]) > 5 * std && vals[i] > vals[i-1] * 2) {
+                issues.push({type:'warn', text:'Spike at step ' + lossData[i].step.toLocaleString() + ': loss jumped from ' + vals[i-1].toFixed(3) + ' to ' + vals[i].toFixed(3) + '. Check for bad batches or gradient explosion.'});
+                break;
+            }
+        }
+    }
+
+    // Check late-stage improvement
+    if (lossData.length >= 200) {
+        var firstHalf = vals.slice(0, Math.floor(vals.length/2));
+        var secondHalf = vals.slice(Math.floor(vals.length/2));
+        var avg1 = firstHalf.reduce(function(a,b){return a+b;},0)/firstHalf.length;
+        var avg2 = secondHalf.reduce(function(a,b){return a+b;},0)/secondHalf.length;
+        if (avg2 > avg1 * 0.95) {
+            // not improving much
+        }
+    }
+
+    // Check eval gap if eval data exists
+    if (evalData.length > 0 && lossData.length > 0) {
+        var lastEval = evalData[evalData.length-1];
+        var gap = Math.abs(100 - lastEval.acc);
+        if (gap > 70 && lastEval.acc < 30) {
+            issues.push({type:'warn', text:'Early training: eval accuracy at ' + lastEval.acc.toFixed(1) + '%. This is normal early on — keep training.'});
+        }
+    }
+
+    // Check loss magnitude
+    var finalLoss = vals[vals.length-1];
+    if (finalLoss < 0.01 && lossData.length > 100) {
+        issues.push({type:'ok', text:'Loss is very low (' + finalLoss.toFixed(4) + '). Model may be overfitting or near convergence.'});
+    }
+    if (finalLoss > 5 && lossData.length > 100) {
+        issues.push({type:'error', text:'Loss is very high (' + finalLoss.toFixed(2) + ') after ' + lossData.length + ' steps. Check data format, model init, or LR.'});
+    }
+
+    if (issues.length === 0) {
+        issues.push({type:'ok', text:'No obvious issues detected. Loss is decreasing as expected.'});
+    }
+
+    for (var i = 0; i < issues.length; i++) {
+        var cls = issues[i].type === 'error' ? 'warn' : issues[i].type === 'ok' ? 'warn warn-ok' : 'warn';
+        var icon = issues[i].type === 'error' ? '\u26A0\uFE0F' : issues[i].type === 'ok' ? '\u2705' : '\uD83D\uDD0D';
+        div.innerHTML += '<div class="' + cls + '">' + icon + ' ' + issues[i].text + '</div>';
+    }
+
+    // Draw histogram
+    drawHistogram(vals);
+}
+
+function drawHistogram(vals) {
+    var c = document.getElementById('hist-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 1060) * 2;
+    c.height = 200 * 2;
+    c.style.width = Math.min(rect.width - 20, 1060) + 'px';
+    c.style.height = '200px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    if (vals.length < 3) return;
+
+    var min = Math.min.apply(null, vals);
+    var max = Math.max.apply(null, vals);
+    var bins = 30;
+    var binW = (max - min) / bins;
+    var hist = new Array(bins).fill(0);
+    for (var i = 0; i < vals.length; i++) {
+        var idx = Math.min(bins-1, Math.floor((vals[i] - min) / (binW || 1)));
+        hist[idx]++;
+    }
+    var maxCount = Math.max.apply(null, hist);
+
+    var plotL = 50, plotR = W - 20, plotT = 10, plotB = H - 25;
+    var plotW = plotR - plotL, plotH = plotB - plotT;
+
+    for (var i = 0; i < bins; i++) {
+        var x = plotL + i * plotW / bins;
+        var barH = (hist[i] / maxCount) * plotH;
+        ctx.fillStyle = 'rgba(59,130,246,0.7)';
+        ctx.fillRect(x, plotT + plotH - barH, Math.max(1, plotW/bins - 1), barH);
+    }
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(min.toFixed(2), plotL, plotB + 14);
+    ctx.fillText((min + (max-min)*0.5).toFixed(2), (plotL+plotR)/2, plotB + 14);
+    ctx.fillText(max.toFixed(2), plotR, plotB + 14);
+}
+
+function updateStats() {
+    if (lossData.length > 0) {
+        var last = lossData[lossData.length-1];
+        document.getElementById('stat-loss').textContent = last.loss.toFixed(4);
+        document.getElementById('stat-best').textContent = Math.min.apply(null, lossData.map(function(d){return d.loss;})).toFixed(4);
+        document.getElementById('stat-steps').textContent = last.step.toLocaleString();
+    }
+    if (evalData.length > 0) {
+        var lastE = evalData[evalData.length-1];
+        var bestE = Math.max.apply(null, evalData.map(function(d){return d.acc;}));
+        document.getElementById('eval-latest').textContent = lastE.acc.toFixed(2) + '%';
+        document.getElementById('eval-best').textContent = bestE.toFixed(2) + '%';
+        document.getElementById('eval-gap').textContent = (100 - lastE.acc).toFixed(1) + '%';
+        document.getElementById('eval-samples').textContent = evalData.length;
+    }
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelector('.tab[data-tab="' + name + '"]').classList.add('active');
+    ['train','eval','compare','diagnose'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none';
+    });
+    if (name === 'train') setTimeout(drawLossCanvas, 50);
+    if (name === 'eval') setTimeout(drawEvalCanvas, 50);
+    if (name === 'diagnose') setTimeout(runDiagnostics, 50);
+}
+
+function addManualPoint() {
+    var step = parseInt(document.getElementById('manual-step').value) || 0;
+    var loss = parseFloat(document.getElementById('manual-loss').value) || 0;
+    if (step > 0 && loss > 0) {
+        lossData.push({step: step, loss: loss});
+        lossData.sort(function(a,b){return a.step-b.step;});
+        updateStats();
+        drawLossCanvas();
+        if (document.querySelector('.tab[data-tab="train"].active')) drawLossCanvas();
+        document.getElementById('log-input').value = JSON.stringify(lossData.slice(-100));
+    }
+}
+
+function loadComparison() {
+    // Placeholder for multi-run comparison
+}
+
+// Auto-load from API
+async function loadData() {
+    try {
+        var r = await fetch(API + '/training-progress');
+        var d = await r.json();
+        if (d.loss_series && d.loss_series.length > 0) {
+            lossData = d.loss_series;
+            evalData = d.acc_series || [];
+            updateStats();
+            drawLossCanvas();
+        }
+    } catch(e) {
+        // Offline, check for log textarea
+    }
+}
+
+// Parse pasted log
+document.getElementById('log-input').addEventListener('input', function() {
+    var text = this.value;
+    if (text.length > 20) {
+        var parsed = parseLog(text);
+        if (parsed.train.length > 0) {
+            lossData = parsed.train;
+            evalData = parsed.eval;
+            updateStats();
+            drawLossCanvas();
+        }
+    }
+});
+
+// Tab click handler
+document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() {
+        switchTab(this.getAttribute('data-tab'));
+    });
+});
+
+// Init
+setTimeout(function() {
+    loadData();
+    drawLossCanvas();
+    document.getElementById('log-input').placeholder = 'Paste training log here or it auto-loads...';
+}, 300);
+
+window.addEventListener('resize', function() {
+    drawLossCanvas();
+    drawEvalCanvas();
+});
+</script>
+</body>
+</html>

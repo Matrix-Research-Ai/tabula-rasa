@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gradient & Activation Monitor</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        canvas { width: 100%; display: block; border-radius: 6px; }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        select, button { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+        button:hover { background: #1e293b; } button:active { background: var(--accent); }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+        .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8rem; }
+        .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .bar-box { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+        .bar-box .bar-label { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px; }
+        .bar-box .bar-track { height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; }
+        .bar-box .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .help-note { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--muted); }
+        .warn { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; }
+        .warn-ok { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
+    </style>
+</head>
+<body>
+<h2>&#x26A1; Gradient & Activation Monitor</h2>
+
+<div class="g4">
+    <div class="stat-box"><div class="v" id="grad-norm" style="color:var(--green);">-</div><div class="l">Gradient Norm</div></div>
+    <div class="stat-box"><div class="v" id="grad-var" style="color:var(--accent);">-</div><div class="l">Gradient Variance</div></div>
+    <div class="stat-box"><div class="v" id="act-mean">-</div><div class="l">Activation Mean</div></div>
+    <div class="stat-box"><div class="v" id="act-std">-</div><div class="l">Activation Std</div></div>
+</div>
+
+<div class="tab-bar">
+    <span class="tab active" data-tab="gradients" onclick="switchTab('gradients')">Gradient Flow</span>
+    <span class="tab" data-tab="activations" onclick="switchTab('activations')">Layer Activations</span>
+    <span class="tab" data-tab="diagnose" onclick="switchTab('diagnose')">Health Check</span>
+    <span class="tab" data-tab="tips" onclick="switchTab('tips')">Debug Guide</span>
+</div>
+
+<div id="tab-gradients">
+    <div class="card">
+        <div class="g2">
+            <div>
+                <h3>Gradient Norm per Layer</h3>
+                <div id="grad-bars"></div>
+            </div>
+            <div>
+                <h3>Gradient Flow Over Time</h3>
+                <canvas id="grad-time-canvas" style="height:250px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="help-note">
+        <strong>Interpretation:</strong> Gradient norms should be roughly similar across layers. If early layers have much smaller gradients than later layers, you may have <strong>vanishing gradients</strong>.
+        If any layer has a norm > 10x the average, you may have <strong>exploding gradients</strong>.
+    </div>
+</div>
+
+<div id="tab-activations" style="display:none;">
+    <div class="card">
+        <div class="g2">
+            <div>
+                <h3>Activation Statistics by Layer</h3>
+                <div id="act-bars"></div>
+            </div>
+            <div>
+                <h3>Activation Distribution</h3>
+                <canvas id="act-dist-canvas" style="height:250px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="help-note">
+        <strong>Healthy activations:</strong> Mean ~ 0, Std ~ 1.0 after normalization. Values going to ±inf suggest exploding activations.
+        Consistently negative means suggest dying ReLU or improper init.
+    </div>
+</div>
+
+<div id="tab-diagnose" style="display:none;">
+    <div class="card">
+        <h3>Gradient Health</h3>
+        <div id="grad-health"></div>
+    </div>
+    <div class="card">
+        <h3>Activation Health</h3>
+        <div id="act-health"></div>
+    </div>
+    <div class="card">
+        <h3>NaN/Inf Detector</h3>
+        <div id="nan-detector"><span style="color:var(--muted);">No live model connected. Toggle switches below to simulate conditions.</span></div>
+    </div>
+</div>
+
+<div id="tab-tips" style="display:none;">
+    <div class="card">
+        <h3>Gradient Health Troubleshooting</h3>
+        <div class="warn"><strong>Vanishing Gradients</strong> — Early layer grads near zero. Fixes: use LayerNorm (not BatchNorm), proper init (xavier/gaussian), skip connections, reduce depth.</div>
+        <div class="warn"><strong>Exploding Gradients</strong> — Grad norms > 10 for any layer. Fixes: gradient clipping (max_norm=1.0), lower LR, better init, add residual scaling (1/sqrt(N)).</div>
+        <div class="warn-ok"><strong>Healthy Flow</strong> — Gradients decrease smoothly from later to earlier layers. Variance stays within 0.1-10 range across all layers.</div>
+        <div class="warn"><strong>Dead Neurons</strong> — Activations all negative (ReLU dies) or all zero. Fixes: use LeakyReLU/GELU, check bias init, ensure sufficient gradient flow.</div>
+        <div class="warn-ok"><strong>NaN/Inf</strong> — Silently kills training. Fixes: add torch.isnan check in training loop, gradient clipping, lower LR, check for log(0) or division by zero.</div>
+    </div>
+    <div class="card">
+        <h3>Init Checklist</h3>
+        <div id="init-checklist">
+            <div class="row"><span>Weight init for linear layers</span><span class="badge bg">xavier_uniform_</span></div>
+            <div class="row"><span>Weight init for embeddings</span><span class="badge by">~N(0, 1/d_model)</span></div>
+            <div class="row"><span>Bias init</span><span class="badge">zeros_</span></div>
+            <div class="row"><span>LayerNorm weight</span><span class="badge">ones_</span></div>
+            <div class="row"><span>LayerNorm bias</span><span class="badge">zeros_</span></div>
+            <div class="row"><span>Output projection init</span><span class="badge bp">xavier_uniform_ * 0.1</span></div>
+            <div class="row"><span>Residual pre-LN scaling</span><span class="badge bg">1/sqrt(N_layers)</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Simulation Controls</h3>
+    <div class="g3">
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Gradient Condition</label>
+            <select id="sim-grad" onchange="rerunSim()">
+                <option value="healthy">Healthy</option>
+                <option value="vanishing">Vanishing</option>
+                <option value="exploding">Exploding</option>
+                <option value="nan">NaN/Inf</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Activation Condition</label>
+            <select id="sim-act" onchange="rerunSim()">
+                <option value="healthy">Healthy</option>
+                <option value="dead">Dying ReLU</option>
+                <option value="saturated">Saturated</option>
+                <option value="exploding">Exploding</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:0.75rem;color:var(--muted);">Steps to Simulate</label>
+            <input type="number" id="sim-steps" value="200" min="10" max="1000" style="width:80px;background:#0f172a;border:1px solid var(--border);color:white;border-radius:6px;padding:6px;" onchange="rerunSim()">
+        </div>
+    </div>
+</div>
+
+<script>
+var gradientHistory = [];
+var stepCount = 0;
+var layerNames = ['embed', 'attn_0', 'ffn_0', 'attn_1', 'ffn_1', 'attn_2', 'ffn_2', 'attn_3', 'ffn_3', 'output'];
+
+function runSimulation() {
+    var gradType = document.getElementById('sim-grad').value;
+    var actType = document.getElementById('sim-act').value;
+    var steps = parseInt(document.getElementById('sim-steps').value) || 200;
+
+    // Generate per-layer gradient norms
+    var gradNorms = [];
+    var actMeans = [];
+    var actStds = [];
+
+    for (var i = 0; i < layerNames.length; i++) {
+        var gn = 0, am = 0, as = 0;
+        if (gradType === 'healthy') {
+            // Gradients decrease slightly from last to first, staying in 0.5-5 range
+            gn = 0.5 + 3 * (layerNames.length - i) / layerNames.length + Math.random() * 0.3;
+            am = (Math.random() - 0.5) * 0.3;
+            as = 0.8 + Math.random() * 0.4;
+        } else if (gradType === 'vanishing') {
+            // Early layers have near-zero gradients
+            var decay = Math.pow(0.15, i);
+            gn = 5 * decay + Math.random() * 0.05;
+            am = (Math.random() - 0.5) * 0.1;
+            as = 0.1 + Math.random() * 0.2;
+        } else if (gradType === 'exploding') {
+            // Later layers explode
+            if (i < 3) gn = 1 + Math.random() * 0.5;
+            else if (i < 6) gn = 5 + Math.random() * 2;
+            else gn = 50 + Math.random() * 30;
+            am = (Math.random() - 0.5) * 2;
+            as = 2 + Math.random() * 3;
+        } else if (gradType === 'nan') {
+            gn = (i === layerNames.length - 1) ? NaN : 1 + Math.random() * 0.5;
+            am = (i === layerNames.length - 1) ? NaN : (Math.random() - 0.5) * 0.3;
+            as = (i === layerNames.length - 1) ? NaN : 0.8 + Math.random() * 0.4;
+        }
+        gradNorms.push(gn);
+        actMeans.push(am);
+        actStds.push(as);
+    }
+
+    // Update stats
+    var validGrads = gradNorms.filter(function(v) { return !isNaN(v) && isFinite(v); });
+    var avgGrad = validGrads.length > 0 ? validGrads.reduce(function(a,b){return a+b;},0)/validGrads.length : 0;
+    var gradVar = validGrads.length > 0 ? validGrads.map(function(v){return (v-avgGrad)*(v-avgGrad);}).reduce(function(a,b){return a+b;},0)/validGrads.length : 0;
+    var avgAct = actMeans.filter(function(v){return !isNaN(v);}).reduce(function(a,b){return a+b;},0)/actMeans.length;
+    var avgActStd = actStds.filter(function(v){return !isNaN(v);}).reduce(function(a,b){return a+b;},0)/actStds.length;
+
+    document.getElementById('grad-norm').textContent = avgGrad.toFixed(3);
+    document.getElementById('grad-norm').style.color = avgGrad > 10 ? '#ef4444' : avgGrad < 0.1 ? '#f59e0b' : '#22c55e';
+    document.getElementById('grad-var').textContent = gradVar.toFixed(3);
+    document.getElementById('act-mean').textContent = avgAct.toFixed(3);
+    document.getElementById('act-mean').style.color = Math.abs(avgAct) > 5 ? '#ef4444' : (avgAct < -1 ? '#f59e0b' : '#22c55e');
+    document.getElementById('act-std').textContent = avgActStd.toFixed(3);
+
+    // Render gradient bars
+    var gradHtml = '';
+    var maxGN = Math.max.apply(null, gradNorms.filter(function(v) { return !isNaN(v) && isFinite(v); }));
+    for (var i = 0; i < layerNames.length; i++) {
+        var v = gradNorms[i];
+        var pct = isNaN(v) || !isFinite(v) ? 0 : Math.min(100, v / maxGN * 100);
+        var color = isNaN(v) || !isFinite(v) ? '#ef4444' : v > 10 ? '#ef4444' : v < 0.05 ? '#f59e0b' : '#3b82f6';
+        gradHtml += '<div class="bar-box"><div class="bar-label"><span>' + layerNames[i] + '</span><span>' + (isNaN(v) ? 'NaN' : v.toFixed(4)) + '</span></div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div></div>';
+    }
+    document.getElementById('grad-bars').innerHTML = gradHtml;
+
+    // Render activation bars
+    var actHtml = '';
+    var maxAS = Math.max.apply(null, actStds.filter(function(v) { return !isNaN(v) && isFinite(v); }));
+    for (var i = 0; i < layerNames.length; i++) {
+        var m = actMeans[i], s = actStds[i];
+        var mpct = isNaN(m) || !isFinite(m) ? 0 : Math.min(100, Math.abs(m) / 5 * 100);
+        var color = isNaN(s) || !isFinite(s) ? '#ef4444' : (s > 5 ? '#ef4444' : (Math.abs(m) > 2 ? '#f59e0b' : '#22c55e'));
+        actHtml += '<div class="bar-box"><div class="bar-label"><span>' + layerNames[i] + '</span><span> \u03BC=' + (isNaN(m) ? 'NaN' : m.toFixed(3)) + ' \u03C3=' + (isNaN(s) ? 'NaN' : s.toFixed(3)) + '</span></div><div class="bar-track"><div class="bar-fill" style="width:' + mpct + '%;background:' + color + ';"></div></div></div>';
+    }
+    document.getElementById('act-bars').innerHTML = actHtml;
+
+    // Update gradient history
+    stepCount += steps;
+    gradientHistory.push({step: stepCount, norm: avgGrad, var: gradVar});
+    if (gradientHistory.length > 200) gradientHistory = gradientHistory.slice(-200);
+    drawGradTimeCanvas();
+
+    // Diagnostics
+    var gradHealth = '';
+    if (gradType === 'healthy') {
+        gradHealth = '<div class="warn-ok">Gradient norms are well-distributed across layers. Early layers get slightly smaller gradients (normal). No vanishing or explosion detected.</div>';
+    } else if (gradType === 'vanishing') {
+        gradHealth = '<div class="warn">Vanishing gradients detected. Early layers (embed, attn_0, ffn_0) have norm < 0.1. The model cannot learn in early layers. Consider: residual scaling, gradient accumulation, or reducing depth.</div>';
+    } else if (gradType === 'exploding') {
+        gradHealth = '<div class="warn">Exploding gradients detected. Later layers (attn_2, ffn_2+) have norm > 10. Consider: gradient clipping (max_norm=1.0), lower LR, or add residual scaling factor 1/sqrt(N).</div>';
+    } else if (gradType === 'nan') {
+        gradHealth = '<div class="warn">NaN/Inf gradient detected in output layer! Training is corrupted. Check: learning rate, init, log(0), division by zero, or inputs containing NaN.</div>';
+    }
+    document.getElementById('grad-health').innerHTML = gradHealth;
+
+    var actHealth = '';
+    if (actType === 'healthy') {
+        actHealth = '<div class="warn-ok">Activations are well-behaved: mean near 0, std near 1.0. No dead neurons or saturation detected.</div>';
+    } else if (actType === 'dead') {
+        actHealth = '<div class="warn">Dying ReLU detected. Activation means are strongly negative and std is near zero in FFN layers. Consider: use GELU/LeakyReLU, check bias init, ensure positive gradient flow.</div>';
+    } else if (actType === 'saturated') {
+        actHealth = '<div class="warn">Neuron saturation detected. Activations have high magnitude (|mean| > 2). The model may have poor representation diversity. Check: LayerNorm parameters, init scale, or use lower LR.</div>';
+    } else if (actType === 'exploding') {
+        actHealth = '<div class="warn">Exploding activations! Mean and std are very large. Gradients may go to NaN soon. Immediate fixes: reduce LR, add gradient clipping, check for non-normalized inputs.</div>';
+    }
+    document.getElementById('act-health').innerHTML = actHealth;
+
+    // NaN detector
+    var hasNaN = gradNorms.some(function(v) { return isNaN(v) || !isFinite(v); });
+    document.getElementById('nan-detector').innerHTML = hasNaN ?
+        '<div class="warn">NaN or Inf detected in model state. Training will fail silently if not caught. Add torch.isnan(loss).any() check in training loop.</div>' :
+        '<div class="warn-ok">No NaN or Inf detected. Values are finite.</div>';
+}
+
+function drawGradTimeCanvas() {
+    var c = document.getElementById('grad-time-canvas');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 250 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '250px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    if (gradientHistory.length < 2) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Collect data over time...', W/2, H/2);
+        return;
+    }
+
+    var steps = gradientHistory.map(function(d) { return d.step; });
+    var norms = gradientHistory.map(function(d) { return d.norm; });
+    var minS = steps[0], maxS = steps[steps.length-1];
+    var maxN = Math.max.apply(null, norms) * 1.2 || 1;
+
+    var plotL = 60, plotR = W - 15, plotT = 15, plotB = H - 25;
+    var plotW = plotR - plotL, plotH = plotB - plotT;
+
+    function sx(v) { return plotL + (v - minS) / (maxS - minS) * plotW; }
+    function sy(v) { return plotT + (1 - v / maxN) * plotH; }
+
+    ctx.strokeStyle = 'rgba(51,65,85,0.5)';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+        var y = plotT + i * plotH / 4;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    for (var i = 0; i < steps.length; i++) {
+        var x = sx(steps[i]), y = sy(norms[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.arc(sx(steps[steps.length-1]), sy(norms[norms.length-1]), 4, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Step', W/2, H - 4);
+    ctx.save();
+    ctx.translate(12, H/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText('Grad Norm', 0, 0);
+    ctx.restore();
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelector('.tab[data-tab="' + name + '"]').classList.add('active');
+    ['gradients','activations','diagnose','tips'].forEach(function(t) {
+        document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none';
+    });
+    if (name === 'gradients' || name === 'activations') setTimeout(rerunSim, 50);
+}
+
+function rerunSim() { runSimulation(); }
+
+// Init
+document.querySelectorAll('.tab').forEach(function(t) {
+    t.addEventListener('click', function() { switchTab(this.getAttribute('data-tab')); });
+});
+setTimeout(runSimulation, 200);
+window.addEventListener('resize', function() { drawGradTimeCanvas(); });
+</script>
+</body>
+</html>

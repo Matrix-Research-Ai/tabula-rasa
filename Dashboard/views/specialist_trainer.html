@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Specialist Trainer</title>
+    <script src="../core/dashboard.js"></script>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        h4 { font-size: 0.85rem; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+        label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 4px; }
+        input, select { width: 100%; background: #0f172a; border: 1px solid var(--border); color: white; padding: 9px 10px; border-radius: 6px; font-size: 0.9rem; outline: none; font-family: inherit; }
+        input:focus, select:focus { border-color: var(--accent); }
+        .btn { padding: 6px 14px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+        .btn-p { background: var(--accent); color: white; }
+        .btn-g { background: var(--green); color: white; }
+        .btn-d { background: var(--red); color: white; }
+        .btn-s { background: #374151; color: white; }
+        .btn-sm { padding: 4px 10px; font-size: 0.7rem; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn:hover:not(:disabled) { opacity: 0.9; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); }
+        .by { background: rgba(245,158,11,0.15); color: var(--orange); }
+        .bd { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .bp { background: rgba(168,85,247,0.15); color: #a855f7; }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.4rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        .stage-panel { display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px; }
+        .stage-box { background:#0f172a;border-radius:8px;padding:14px;cursor:pointer; }
+        .stage-box .hdr { font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em; }
+        .stage-box .title { font-weight:600;font-size:0.9rem;margin:4px 0 6px; }
+        .stage-box .desc { font-size:0.8rem;color:#9ca3af;line-height:1.5; }
+        .stage-box .tags { margin-top:6px;display:flex;gap:4px; }
+        pre.log { background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 200px; overflow-y: auto; font-family: monospace; color: #d1d5db; line-height: 1.6; }
+        .spec-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+        .spec-hdr { display: flex; align-items: center; padding: 10px 14px; cursor: pointer; gap: 10px; }
+        .spec-hdr:hover { background: rgba(255,255,255,0.02); }
+        .spec-hdr .name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+        .spec-hdr .desc { font-size: 0.75rem; color: var(--muted); flex: 2; }
+        .spec-hdr .arrow { font-size: 0.7rem; color: var(--muted); transition: transform 0.2s; }
+        .spec-hdr .arrow.open { transform: rotate(90deg); }
+        .spec-body { padding: 0 14px 12px; display: none; }
+        .spec-body.open { display: block; }
+        .spec-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+        .spec-config-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .spec-config-grid input, .spec-config-grid select { padding: 5px 8px; font-size: 0.8rem; }
+        .spec-config-grid label { font-size: 0.7rem; }
+        .spec-tog { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+        .spec-tog label { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: #d1d5db; cursor: pointer; }
+        .spec-tog input[type=checkbox] { width: auto; }
+        .spec-status { font-size: 0.75rem; min-height: 16px; color: var(--muted); }
+        .stage-hdr { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 2px 4px; font-weight: 600; border-top: 1px solid; margin-top: 4px; cursor: pointer; }
+        .empty-msg { color: var(--muted); padding: 30px; text-align: center; }
+    </style>
+</head>
+<body>
+    <h2>&#x1F916; Specialist Trainer</h2>
+
+    <!-- SECTION 1: Stage Map -->
+    <div class="card" style="margin-bottom:20px;border-color:rgba(59,130,246,0.3);">
+        <h3 style="color:#60a5fa;margin:0 0 14px 0;">&#x1F476; Developmental Stage Map &mdash; Piaget-Inspired Syllabus</h3>
+        <div class="stage-panel">
+            <div class="stage-box" style="border-top:3px solid #3b82f6;opacity:1;cursor:pointer;" id="stage-box-infancy" onclick="toggleStageBox('infancy')">
+                <div class="hdr">Infancy <span id="stage-arrow-infancy" style="font-size:0.6rem;color:#6b7280;">&#x25B2;</span></div>
+                <div class="title" style="color:#60a5fa;">Stages 1-2</div>
+                <div class="desc">Learning object permanence, counting, and recognizing patterns.</div>
+                <div class="tags"><span class="badge bg">Math</span><span class="badge by">Patterns</span></div>
+            </div>
+            <div class="stage-box" style="border-top:3px solid #34d399;opacity:1;cursor:pointer;" id="stage-box-toddlerhood" onclick="toggleStageBox('toddlerhood')">
+                <div class="hdr">Toddlerhood <span id="stage-arrow-toddlerhood" style="font-size:0.6rem;color:#6b7280;">&#x25B2;</span></div>
+                <div class="title" style="color:#34d399;">Stages 3-4</div>
+                <div class="desc">Learning the names of things and how actions change the world.</div>
+                <div class="tags"><span class="badge bp">Taxonomy</span><span class="badge by">State</span></div>
+            </div>
+            <div class="stage-box" style="border-top:3px solid #f59e0b;opacity:1;cursor:pointer;" id="stage-box-childhood" onclick="toggleStageBox('childhood')">
+                <div class="hdr">Childhood <span id="stage-arrow-childhood" style="font-size:0.6rem;color:#6b7280;">&#x25B2;</span></div>
+                <div class="title" style="color:#f59e0b;">Stage 5</div>
+                <div class="desc">Learning the strict rules of grammar and social structure.</div>
+                <div class="tags"><span class="badge bg">Grammar</span></div>
+            </div>
+            <div class="stage-box" style="border-top:3px solid #a855f7;opacity:1;cursor:pointer;" id="stage-box-adulthood" onclick="toggleStageBox('adulthood')">
+                <div class="hdr">Adulthood <span id="stage-arrow-adulthood" style="font-size:0.6rem;color:#6b7280;">&#x25B2;</span></div>
+                <div class="title" style="color:#a855f7;">Stage 6</div>
+                <div class="desc">Engaging in philosophy, ethics, and complex reasoning.</div>
+                <div class="tags"><span class="badge bp">Dialectics</span></div>
+            </div>
+        </div>
+        <div style="margin-top:10px;font-size:0.75rem;color:var(--muted);text-align:center;border-top:1px solid var(--border);padding-top:10px;">
+            &#x1F393; Graduation at 98% held-out test accuracy &mdash; frozen specialists never overwritten &mdash; Neural Router dispatches by cognitive stage
+        </div>
+    </div>
+
+    <!-- SECTION 2: Available Specialists -->
+    <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="margin:0;color:var(--green);">&#x1F9E0; Available Specialists</h3>
+            <div class="g3" style="gap:10px;margin:0;width:auto;">
+                <div class="stat-box" style="padding:6px 14px;"><div class="v" style="font-size:1rem;color:var(--accent)" id="spec-ready">0</div><div class="l" style="font-size:0.6rem;">Ready</div></div>
+                <div class="stat-box" style="padding:6px 14px;"><div class="v" style="font-size:1rem;color:var(--orange)" id="spec-training">0</div><div class="l" style="font-size:0.6rem;">Training</div></div>
+                <div class="stat-box" style="padding:6px 14px;"><div class="v" style="font-size:1rem;color:var(--muted)" id="spec-queued">0</div><div class="l" style="font-size:0.6rem;">Queued</div></div>
+            </div>
+        </div>
+        <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-sm btn-s" onclick="document.getElementById('spec-list').style.display='';['infancy','toddlerhood','childhood','adulthood'].forEach(function(b){var e=document.getElementById('stage-box-'+b);if(e)e.style.opacity='1';var a=document.getElementById('stage-arrow-'+b);if(a)a.textContent='\u25B2'});[0,1,2,3,4].forEach(function(i){var g=document.getElementById('stage-group-'+i);if(g)g.style.display=''})">&#x25B2; Select All</button>
+            <button class="btn btn-sm btn-s" onclick="document.getElementById('spec-list').style.display='none';['infancy','toddlerhood','childhood','adulthood'].forEach(function(b){var e=document.getElementById('stage-box-'+b);if(e)e.style.opacity='0.6';var a=document.getElementById('stage-arrow-'+b);if(a)a.textContent='\u25BC'});[0,1,2,3,4].forEach(function(i){var g=document.getElementById('stage-group-'+i);if(g)g.style.display='none'})">&#x25BC; Deselect All</button>
+            <span style="font-size:0.7rem;color:var(--muted);margin-left:auto;" id="stage-counts"></span>
+        </div>
+        <div id="spec-list"></div>
+    </div>
+
+    <!-- SECTION 3: Training Log -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0">&#x1F4DD; Training Log</h3>
+            <button onclick="copyTrainLog()" style="background:#374151;border:none;color:#d1d5db;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.75rem">&#x1F4CB; Copy</button>
+        </div>
+        <pre class="log" id="train-log">No training started yet.</pre>
+    </div>
+
+    <script>
+    var allSkills = [];
+    var trainLogLines = [];
+    var specState = {};
+
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+    (function() {
+        var saved = sessionStorage.getItem('spec_log');
+        if (saved) { try { trainLogLines = JSON.parse(saved); } catch(e) { trainLogLines = []; } }
+    })();
+    function saveLog() {
+        try { sessionStorage.setItem('spec_log', JSON.stringify(trainLogLines.slice(-200))); } catch(e) {}
+    }
+
+    function log(msg, t) {
+        t = t || 'info';
+        var now = new Date().toLocaleTimeString();
+        var c = t === 'err' ? '#ef4444' : t === 'ok' ? '#22c55e' : t === 'warn' ? '#f59e0b' : '#94a3b8';
+        trainLogLines.push('<span style="color:#6b7280">[' + now + ']</span> <span style="color:' + c + '">[' + t.toUpperCase() + ']</span> ' + msg);
+        $('train-log').innerHTML = trainLogLines.slice(-200).join('<br>');
+        saveLog();
+    }
+
+    function copyTrainLog() {
+        var el = document.getElementById('train-log');
+        var text = el ? el.textContent || el.innerText : '';
+        navigator.clipboard.writeText(text).then(function() {
+            log('Log copied to clipboard', 'ok');
+        }).catch(function(e) {
+            log('Copy failed: ' + e.message, 'err');
+        });
+    }
+
+    var stages = [
+        { name: 'Infancy — Stage 1: Math', box: 'infancy', color: '#60a5fa', border: '#3b82f6', keys: ['addition', 'subtraction', 'multiplication', 'division', 'general_math'] },
+        { name: 'Infancy — Stage 2: Patterns', box: 'infancy', color: '#60a5fa', border: '#3b82f6', keys: ['pattern_specialist'] },
+        { name: 'Toddlerhood (Stages 3-4)', box: 'toddlerhood', color: '#34d399', border: '#34d399', keys: ['taxonomy_specialist', 'state_specialist'] },
+        { name: 'Childhood (Stage 5)', box: 'childhood', color: '#f59e0b', border: '#f59e0b', keys: ['grammar_specialist'] },
+        { name: 'Adulthood (Stage 6)', box: 'adulthood', color: '#a855f7', border: '#a855f7', keys: ['language_general', 'dialectics_specialist'] },
+        { name: 'AlphaZero Self-Play', box: null, color: '#3b82f6', border: '#3b82f6', keys: ['code_general'] },
+    ];
+
+    function getStageForSkill(name) {
+        for (var si = 0; si < stages.length; si++) {
+            for (var ki = 0; ki < stages[si].keys.length; ki++) {
+                if (name === stages[si].keys[ki]) return stages[si];
+            }
+        }
+        return null;
+    }
+
+    function toggleStageBox(box) {
+        var map = { infancy: [0,1], toddlerhood: [2], childhood: [3], adulthood: [4] };
+        var ids = map[box] || [];
+        var arrow = document.getElementById('stage-arrow-' + box);
+        var isOpen = arrow && arrow.textContent === '\u25B2';
+        var boxEl = document.getElementById('stage-box-' + box);
+        ids.forEach(function(si) {
+            var group = document.getElementById('stage-group-' + si);
+            if (group) group.style.display = isOpen ? 'none' : '';
+        });
+        if (arrow) arrow.textContent = isOpen ? '\u25BC' : '\u25B2';
+        if (boxEl) boxEl.style.opacity = isOpen ? '0.6' : '1';
+    }
+
+    function toggleSpec(el, name) {
+        var body = document.getElementById('spec-body-' + name.replace(/[^a-zA-Z0-9]/g, '_'));
+        var arrow = el.querySelector('.arrow');
+        if (body.classList.contains('open')) {
+            body.classList.remove('open');
+            arrow.classList.remove('open');
+        } else {
+            body.classList.add('open');
+            arrow.classList.add('open');
+        }
+    }
+
+    async function loadSpecialists() {
+        try {
+            var r = await fetch(API2 + '/skills');
+            var d = await r.json();
+            allSkills = d.skills || [];
+            renderSpecList();
+            restoreRunningJobs();
+        } catch(e) {
+            $('spec-list').innerHTML = '<div class="empty-msg">Server offline (port 8002)</div>';
+        }
+    }
+
+    function renderSpecList() {
+        if (!allSkills.length) {
+            $('spec-list').innerHTML = '<div class="empty-msg">No specialists found.</div>';
+            return;
+        }
+
+        var grouped = {};
+        stages.forEach(function(s) { grouped[s.name] = []; });
+        var ready = 0, training = 0, queued = 0;
+
+        allSkills.forEach(function(s) {
+            if (s.status === 'ready') ready++;
+            else if (s.status === 'training') training++;
+            else queued++;
+            var stage = getStageForSkill(s.name);
+            if (stage) grouped[stage.name].push({ skill: s, stage: stage });
+        });
+
+        allSkills.forEach(function(s) {
+            if (!specState[s.name]) {
+                specState[s.name] = { jobId: null, polling: false, isTraining: false, lastOutputLen: 0 };
+            }
+        });
+
+        var html = '';
+        for (var si = 0; si < stages.length; si++) {
+            var items = grouped[stages[si].name];
+            if (!items || items.length === 0) continue;
+
+            html += '<div class="stage-group" id="stage-group-' + si + '">';
+            var clickable = stages[si].box ? 'cursor:pointer;' : 'cursor:default;';
+            html += '<div class="stage-hdr" style="color:' + stages[si].color + ';border-top-color:' + stages[si].border + ';' + clickable + '">' + stages[si].name + ' (' + items.length + ')</div>';
+
+            for (var ii = 0; ii < items.length; ii++) {
+                var s = items[ii].skill;
+                var safeName = s.name.replace(/[^a-zA-Z0-9]/g, '_');
+                var st = specState[s.name] || { jobId: null, isTraining: false };
+                var cls = s.status === 'ready' ? 'bg' : s.status === 'training' ? 'by' : 'bd';
+                var startDisabled = st.isTraining ? 'disabled' : '';
+
+                html += '<div class="spec-card" id="spec-card-' + safeName + '">';
+                html += '<div class="spec-hdr" onclick="toggleSpec(this,\'' + esc(s.name) + '\')">';
+                html += '<span class="arrow" id="arrow-' + safeName + '">&#x25B6;</span>';
+                html += '<span class="name">' + esc(s.name) + '</span>';
+                html += '<span class="desc">' + esc(s.description || '') + '</span>';
+                html += '<span class="badge ' + cls + '">' + esc(s.status) + '</span>';
+                if (st.isTraining) html += '<span class="badge by" style="margin-left:4px;">&#x23F3; Running</span>';
+                html += '</div>';
+
+                html += '<div class="spec-body' + (st.isTraining ? ' open' : '') + '" id="spec-body-' + safeName + '">';
+
+                // Per-specialist config
+                if (s.name === 'language_general') {
+                    html += '<div class="spec-config-grid">';
+                    html += '<div><label>Difficulty</label><select id="steps-' + safeName + '"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>';
+                    html += '<div><label>Games</label><input type="number" id="batch-' + safeName + '" value="200" min="10" max="2000" step="10"></div>';
+                    html += '<div><label>MCTS</label><select id="lr-' + safeName + '"><option value="1" selected>Enabled</option><option value="0">Disabled</option></select></div>';
+                    html += '<div><label>Value Head</label><select id="resume-' + safeName + '"><option value="1" selected>On</option><option value="0">Off</option></select></div>';
+                    html += '</div>';
+                    html += '<div class="spec-tog"><label><input type="checkbox" id="rev-' + safeName + '" checked> Grammar Rules</label></div>';
+                } else if (s.name === 'code_general') {
+                    html += '<div class="spec-config-grid">';
+                    html += '<div><label>Syntax</label><input type="number" id="steps-' + safeName + '" value="100" min="10" max="500" step="10"></div>';
+                    html += '<div><label>Fuzzing</label><input type="number" id="batch-' + safeName + '" value="50" min="10" max="200" step="10"></div>';
+                    html += '<div><label>Algorithm</label><input type="number" id="lr-' + safeName + '" value="30" min="5" max="100" step="5"></div>';
+                    html += '<div><label>Timeout</label><input type="number" id="resume-' + safeName + '" value="2" min="1" max="10" step="0.5"></div>';
+                    html += '</div>';
+                    html += '<div class="spec-tog"><label><input type="checkbox" id="rev-' + safeName + '" checked> Syntax</label><label><input type="checkbox" id="mask-' + safeName + '" checked> Fuzzing</label><label><input type="checkbox" id="hard-' + safeName + '" checked> Algorithm</label></div>';
+                } else {
+                    html += '<div class="spec-config-grid">';
+                    html += '<div><label>Steps</label><input type="number" id="steps-' + safeName + '" value="5000" min="100" max="100000" step="500"></div>';
+                    html += '<div><label>Batch</label><input type="number" id="batch-' + safeName + '" value="128" min="1" max="1024"></div>';
+                    html += '<div><label>LR</label><input type="text" id="lr-' + safeName + '" value="5e-4" style="font-family:monospace"></div>';
+                    html += '<div><label>Resume</label><input type="text" id="resume-' + safeName + '" value="best.pt" style="font-family:monospace"></div>';
+                    html += '</div>';
+                    html += '<div class="spec-tog"><label><input type="checkbox" id="rev-' + safeName + '" checked> Reversed</label><label><input type="checkbox" id="mask-' + safeName + '" checked> Loss Masking</label><label><input type="checkbox" id="hard-' + safeName + '"> Hard Negative</label><label><input type="checkbox" id="vh-' + safeName + '"> Value Head</label></div>';
+                }
+
+                html += '<div class="spec-controls">';
+                html += '<button class="btn btn-g btn-sm" id="start-' + safeName + '" onclick="startSpecTraining(\'' + esc(s.name) + '\')" ' + startDisabled + '>&#x25B6; Start</button>';
+                html += '<button class="btn btn-s btn-sm" id="pause-' + safeName + '" onclick="pauseSpecTraining(\'' + esc(s.name) + '\')" style="display:' + (st.isTraining ? 'inline-flex' : 'none') + ';">&#x23F8;&#xFE0F; Pause</button>';
+                html += '<button class="btn btn-d btn-sm" id="stop-' + safeName + '" onclick="stopSpecTraining(\'' + esc(s.name) + '\')" style="display:' + (st.isTraining ? 'inline-flex' : 'none') + ';">&#x25A0;&#xFE0F; Stop</button>';
+                html += '<span class="spec-status" id="status-' + safeName + '">' + (st.isTraining ? '&#x23F3; Training...' : 'Idle') + '</span>';
+                html += '</div>';
+
+                html += '</div>'; // body
+                html += '</div>'; // card
+            }
+            html += '</div>'; // stage-group
+        }
+
+        $('spec-list').innerHTML = html;
+        $('spec-ready').textContent = ready;
+        $('spec-training').textContent = training;
+        $('spec-queued').textContent = queued;
+    }
+
+    function getSafeName(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+    function updateSpecUI(name, state) {
+        var sn = getSafeName(name);
+        var st = document.getElementById('start-' + sn);
+        var pa = document.getElementById('pause-' + sn);
+        var so = document.getElementById('stop-' + sn);
+        var status = document.getElementById('status-' + sn);
+        var body = document.getElementById('spec-body-' + sn);
+        var arrow = document.getElementById('arrow-' + sn);
+
+        if (state === 'training') {
+            st.disabled = true;
+            pa.style.display = 'inline-flex';
+            pa.innerHTML = '&#x23F8;&#xFE0F; Pause';
+            so.style.display = 'inline-flex';
+            status.innerHTML = '&#x23F3; Training...';
+            status.style.color = 'var(--orange)';
+            specState[name].isTraining = true;
+            body.classList.add('open');
+            arrow.classList.add('open');
+        } else if (state === 'paused') {
+            pa.innerHTML = '&#x25B6; Resume';
+            status.innerHTML = '&#x23F8;&#xFE0F; Paused';
+            status.style.color = 'var(--orange)';
+        } else if (state === 'idle') {
+            st.disabled = false;
+            pa.style.display = 'none';
+            so.style.display = 'none';
+            status.innerHTML = 'Idle';
+            status.style.color = 'var(--muted)';
+            specState[name].isTraining = false;
+            specState[name].jobId = null;
+            specState[name].polling = false;
+            try { sessionStorage.removeItem('spec_job_' + name); } catch(e) {}
+        } else if (state === 'done') {
+            st.disabled = false;
+            pa.style.display = 'none';
+            so.style.display = 'none';
+            status.innerHTML = '&#x2705; Complete';
+            status.style.color = 'var(--green)';
+            specState[name].isTraining = false;
+            specState[name].jobId = null;
+            specState[name].polling = false;
+            try { sessionStorage.removeItem('spec_job_' + name); } catch(e) {}
+        }
+    }
+
+    function buildSpecCmd(name) {
+        var sn = getSafeName(name);
+
+        if (name === 'language_general') {
+            var difficulty = document.getElementById('steps-' + sn).value;
+            var games = parseInt(document.getElementById('batch-' + sn).value) || 200;
+            var useMCTS = document.getElementById('lr-' + sn).value === '1';
+            var useValueHead = document.getElementById('resume-' + sn).value === '1';
+            var useGrammar = document.getElementById('rev-' + sn).checked;
+            return 'cd C:/Users/Admin/tabula-rasa && python3 -u run_language_az.py --games ' + games + ' --difficulty ' + difficulty + (useMCTS ? ' --mcts' : '') + (useGrammar ? ' --grammar' : '') + (useValueHead ? ' --value-head' : '') + ' 2>&1';
+        }
+        if (name === 'code_general') {
+            var syntax = parseInt(document.getElementById('steps-' + sn).value) || 100;
+            var fuzzing = parseInt(document.getElementById('batch-' + sn).value) || 50;
+            var algorithm = parseInt(document.getElementById('lr-' + sn).value) || 30;
+            var timeout = parseFloat(document.getElementById('resume-' + sn).value) || 2;
+            return 'cd C:/Users/Admin/tabula-rasa && python3 -u run_code_az.py --syntax ' + syntax + ' --fuzzing ' + fuzzing + ' --algorithm ' + algorithm + ' --timeout ' + timeout + ' 2>&1';
+        }
+
+        var steps = parseInt(document.getElementById('steps-' + sn).value) || 5000;
+        var batch = parseInt(document.getElementById('batch-' + sn).value) || 128;
+        var lr = document.getElementById('lr-' + sn).value;
+        var resume = document.getElementById('resume-' + sn).value.trim();
+        var reversed = document.getElementById('rev-' + sn).checked;
+        var lossMask = document.getElementById('mask-' + sn).checked;
+
+        var opMap = { 'general_math': 'add', 'addition': 'add', 'subtraction': 'sub', 'multiplication': 'mul', 'division': 'div' };
+        var op = opMap[name] || name;
+
+        if (resume && name === 'general_math') {
+            var cmd = 'cd C:/Users/Admin/tabula-rasa && python3 -u train.py --resume specialists/math/general/' + resume + ' --steps ' + steps;
+            if (document.getElementById('vh-' + sn).checked) cmd += ' --use-value-head';
+            return cmd + ' 2>&1';
+        }
+        var cmd = 'cd C:/Users/Admin/tabula-rasa && python3 -u train_specialist.py ' + op + ' --steps ' + steps + ' --batch ' + batch + ' --lr ' + lr;
+        if (!reversed) cmd += ' --no-reversed';
+        if (!lossMask) cmd += ' --no-loss-mask';
+        return cmd + ' 2>&1';
+    }
+
+    async function startSpecTraining(name) {
+        var cmd = buildSpecCmd(name);
+        var sn = getSafeName(name);
+        var status = document.getElementById('status-' + sn);
+        status.innerHTML = 'Launching...';
+        status.style.color = 'var(--accent)';
+        log('[' + name + '] Starting: ' + cmd, 'warn');
+        try {
+            var r = await fetch(API + '/api/train/start', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            });
+            var d = await r.json();
+            if (d.error) { log('[' + name + '] Error: ' + d.error, 'err'); status.innerHTML = '&#x274C; Error'; status.style.color = 'var(--red)'; return; }
+            specState[name].jobId = d.job_id;
+            specState[name].lastOutputLen = 0;
+            updateSpecUI(name, 'training');
+            try { sessionStorage.setItem('spec_job_' + name, JSON.stringify(d.job_id)); } catch(e) {}
+            log('[' + name + '] Job: ' + d.job_id, 'info');
+            startSpecPolling(name, d.job_id);
+        } catch(e) { log('[' + name + '] Error: ' + e.message, 'err'); status.innerHTML = '&#x274C; ' + e.message; status.style.color = 'var(--red)'; }
+    }
+
+    function startSpecPolling(name, jobId) {
+        if (specState[name].polling) return;
+        specState[name].polling = true;
+        specState[name].lastOutputLen = 0;
+        var interval = setInterval(async function() {
+            try {
+                var sr = await fetch(API + '/api/train/status', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_id: jobId })
+                });
+                var sd = await sr.json();
+                if (sd.output && sd.output.length > specState[name].lastOutputLen) {
+                    var newText = sd.output.substring(specState[name].lastOutputLen);
+                    specState[name].lastOutputLen = sd.output.length;
+                    newText.split('\n').forEach(function(l) { if (l.trim()) log('[' + name + '] ' + l, 'info'); });
+                }
+                if (sd.done) {
+                    clearInterval(interval);
+                    specState[name].polling = false;
+                    updateSpecUI(name, sd.exit_code === 0 ? 'done' : 'idle');
+                    if (sd.exit_code !== 0) {
+                        var st = document.getElementById('status-' + getSafeName(name));
+                        st.innerHTML = '&#x274C; Failed (exit ' + sd.exit_code + ')';
+                        st.style.color = 'var(--red)';
+                    }
+                }
+            } catch(pe) { log('[' + name + '] Poll: ' + pe.message, 'err'); }
+        }, 3000);
+    }
+
+    function pauseSpecTraining(name) {
+        var jobId = specState[name].jobId;
+        if (!jobId) return;
+        var btn = document.getElementById('pause-' + getSafeName(name));
+        var action = btn.innerHTML.includes('Pause') ? 'pause' : 'resume';
+        var ep = action === 'pause' ? '/api/train/pause' : '/api/train/resume';
+        fetch(API + ep, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({job_id: jobId})
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.status === (action === 'pause' ? 'paused' : 'resumed')) {
+                log('[' + name + '] ' + (action === 'pause' ? 'Paused' : 'Resumed'), 'warn');
+                updateSpecUI(name, action === 'pause' ? 'paused' : 'training');
+            }
+        }).catch(function(e){log('['+name+'] Error: '+e.message,'err');});
+    }
+
+    function stopSpecTraining(name) {
+        var jobId = specState[name].jobId;
+        if (!jobId) return;
+        if (!confirm('Stop ' + name + ' training?')) return;
+        fetch(API + '/api/train/stop', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({job_id: jobId})
+        }).then(function(r){return r.json();}).then(function(d){
+            if (d.status === 'stopped') { log('['+name+'] Stopped','err'); updateSpecUI(name,'idle'); }
+        }).catch(function(e){log('['+name+'] Error: '+e.message,'err');});
+    }
+
+    function restoreRunningJobs() {
+        allSkills.forEach(function(s) {
+            try {
+                var saved = sessionStorage.getItem('spec_job_' + s.name);
+                if (saved) {
+                    var jobId = JSON.parse(saved);
+                    if (jobId) {
+                        fetch(API + '/api/train/status', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({job_id: jobId})
+                        }).then(function(r){return r.json();}).then(function(d){
+                            if (d && !d.error && !d.done) {
+                                specState[s.name].jobId = jobId;
+                                specState[s.name].lastOutputLen = d.output ? d.output.length : 0;
+                                updateSpecUI(s.name, 'training');
+                                startSpecPolling(s.name, jobId);
+                                log('[' + s.name + '] Reconnected', 'info');
+                            } else { try { sessionStorage.removeItem('spec_job_' + s.name); } catch(e) {} }
+                        }).catch(function(){ try { sessionStorage.removeItem('spec_job_' + s.name); } catch(e) {} });
+                    }
+                }
+            } catch(e) {}
+        });
+    }
+
+    // Init
+    loadSpecialists();
+    log('Specialist Trainer ready', 'info');
+    // Only refresh counts, never rebuild the DOM
+    setInterval(function() {
+        fetch(API2 + '/skills').then(function(r){return r.json()}).then(function(d){
+            var skills = d.skills || [];
+            var r=0,t=0,q=0;
+            skills.forEach(function(s){
+                if(s.status==='ready')r++;else if(s.status==='training')t++;else q++;
+            });
+            document.getElementById('spec-ready').textContent=r;
+            document.getElementById('spec-training').textContent=t;
+            document.getElementById('spec-queued').textContent=q;
+        }).catch(function(){});
+    }, 15000);
+    </script>
+</body>
+</html>

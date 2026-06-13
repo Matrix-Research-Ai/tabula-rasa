@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Cheatsheet</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 960px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { color: #60a5fa; font-size: 1.05rem; margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(51,65,85,0.3); display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; margin-right: 4px; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .bbl { background: rgba(59,130,246,0.15); color: var(--accent); }
+        code { background: #0f172a; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; color: #e2e8f0; }
+        pre { background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 0.78rem; margin: 8px 0; line-height: 1.5; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.82rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row:last-child { border-bottom: none; }
+        .tip { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.82rem; color: var(--muted); }
+        .warn { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin: 10px 0; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; }
+        table { width:100%; border-collapse: collapse; font-size:0.8rem; margin:8px 0; }
+        th { color: var(--muted); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+        td { padding: 5px 8px; border-bottom: 1px solid rgba(51,65,85,0.3); }
+        .toc { list-style: none; }
+        .toc li { padding: 4px 0; }
+        .toc a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+        .toc a:hover { text-decoration: underline; }
+        ul, ol { padding-left: 20px; font-size: 0.85rem; }
+        li { margin: 4px 0; }
+    </style>
+</head>
+<body>
+<h2>&#x1F4D6; Transformer Architecture Cheatsheet</h2>
+
+<div class="card">
+    <h3>Table of Contents</h3>
+    <ul class="toc">
+        <li><a href="#arch">1. Architecture Overview</a></li>
+        <li><a href="#attn">2. Attention Mechanics</a></li>
+        <li><a href="#init">3. Weight Initialization</a></li>
+        <li><a href="#pos">4. Positional Encoding</a></li>
+        <li><a href="#norm">5. Normalization</a></li>
+        <li><a href="#causal">6. Causal Masking & Causal-Carry Mismatch</a></li>
+        <li><a href="#params">7. Parameter Counting</a></li>
+        <li><a href="#debug">8. Debugging Checklist</a></li>
+        <li><a href="#common">9. Common Pitfalls</a></li>
+        <li><a href="#init-values">10. Recommended Values</a></li>
+    </ul>
+</div>
+
+<h3 id="arch">1. Architecture Overview</h3>
+<div class="card">
+    <p style="font-size:0.85rem;margin-bottom:10px;">A decoder-only transformer for next-token prediction (the architecture used in Tabula Rasa):</p>
+    <pre>Input Tokens [batch, seq_len]
+    |
+    v
+Token Embedding [vocab_size, d_model]
+    |
+    v
+Positional Encoding (learned) [seq_len, d_model]
+    |
+    v
++---------[N x Transformer Block]--------+
+|                                        |
+|   LayerNorm                            |
+|   Multi-Head Self-Attention (causal)   |
+|   Residual + Dropout                   |
+|                                        |
+|   LayerNorm                            |
+|   FFN: Linear -> GELU -> Linear        |
+|   Residual + Dropout                   |
+|                                        |
++----------------------------------------+
+    |
+    v
+Final LayerNorm
+    |
+    v
+Output Projection (unembed) [d_model, vocab_size]
+    |
+    v
+Logits -> Softmax -> Predicted Token</pre>
+</div>
+
+<h3 id="attn">2. Attention Mechanics</h3>
+<div class="card">
+    <p style="font-size:0.85rem;"><strong>Scaled Dot-Product Attention:</strong></p>
+    <pre>Attention(Q, K, V) = softmax(Q &middot; K^T / sqrt(d_k)) &middot; V</pre>
+    <div class="g2">
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Dimensions:</strong></p>
+            <div class="row"><span>Q, K, V shape</span><span>[batch, heads, seq, d_k]</span></div>
+            <div class="row"><span>d_k</span><span>d_model / n_heads</span></div>
+            <div class="row"><span>Attention weights</span><span>[batch, heads, seq, seq]</span></div>
+            <div class="row"><span>Output shape</span><span>[batch, seq, d_model]</span></div>
+        </div>
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Key checks:</strong></p>
+            <div class="row"><span>d_k integer?</span><span>d_model MUST be divisible by n_heads</span></div>
+            <div class="row"><span>Scale applied?</span><span>/sqrt(d_k) BEFORE softmax</span></div>
+            <div class="row"><span>Softmax dim?</span><span>dim=-1 (over keys, not batch!)</span></div>
+            <div class="row"><span>Mask applied?</span><span>-inf for future positions</span></div>
+        </div>
+    </div>
+</div>
+
+<h3 id="init">3. Weight Initialization</h3>
+<div class="card">
+    <table>
+        <tr><th>Layer</th><th>Recommended Init</th><th>Reason</th></tr>
+        <tr><td>Token Embedding</td><td><code>N(0, 1/d_model)</code></td><td>Prevents embedding variance from growing with vocab size</td></tr>
+        <tr><td>Position Embedding</td><td><code>N(0, 1/d_model)</code></td><td>Same scaling as token emb</td></tr>
+        <tr><td>QKV Projections</td><td><code>xavier_uniform_</code></td><td>Maintains variance through linear layers</td></tr>
+        <tr><td>Attention Output</td><td><code>xavier_uniform_ * 0.1</code></td><td>Reduced for residual stream stability (DeepNet init)</td></tr>
+        <tr><td>FFN Up Projection</td><td><code>xavier_uniform_</code></td><td>Standard</td></tr>
+        <tr><td>FFN Down Projection</td><td><code>xavier_uniform_ * 0.1</code></td><td>Reduced for residual stability</td></tr>
+        <tr><td>LayerNorm weight</td><td><code>ones_</code></td><td>Start with identity transformation</td></tr>
+        <tr><td>LayerNorm bias</td><td><code>zeros_</code></td><td>Start with zero offset</td></tr>
+        <tr><td>Output (unembed)</td><td><code>xavier_uniform_</code></td><td>Or tied with embedding</td></tr>
+    </table>
+    <div class="tip"><strong>Tip:</strong> For deep models (8+ layers), use <strong>residual scaling</strong>: multiply each residual contribution by <code>1/sqrt(N)</code> where N = number of layers. Prevents activation growth in deep stacks.</div>
+</div>
+
+<h3 id="pos">4. Positional Encoding</h3>
+<div class="card">
+    <div class="g2">
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Learned (used in Tabula Rasa):</strong></p>
+            <div class="row"><span>Shape</span><span>[max_seq_len, d_model]</span></div>
+            <div class="row"><span>Added to</span><span>Token embedding (element-wise)</span></div>
+            <div class="row"><span>Parameters</span><span>seq_len x d_model</span></div>
+            <div class="row"><span>Pro</span><span>Flexible, learnable</span></div>
+            <div class="row"><span>Con</span><span>Fixed max length, not extrapolatable</span></div>
+        </div>
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Sinusoidal (alternative):</strong></p>
+            <div class="row"><span>Formula</span><span>sin(pos/10000^(2i/d))</span></div>
+            <div class="row"><span>Shape</span><span>[max_seq_len, d_model]</span></div>
+            <div class="row"><span>Pro</span><span>No extra params, extrapolates</span></div>
+            <div class="row"><span>Con</span><span>Fixed frequency schedule</span></div>
+        </div>
+    </div>
+    <div class="warn"><strong>Common bug:</strong> Forgetting to add positional encoding before the first transformer block. Without it, the model has no notion of token order and sees the input as a bag of tokens.</div>
+</div>
+
+<h3 id="norm">5. Normalization</h3>
+<div class="card">
+    <div class="g2">
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Pre-LayerNorm (recommended):</strong></p>
+            <pre>x = x + sublayer(LayerNorm(x))</pre>
+            <p style="font-size:0.78rem;color:var(--muted);">Norm BEFORE the sublayer. More stable, easier to train. Used in modern architectures (GPT-2, Llama).</p>
+        </div>
+        <div>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;"><strong>Post-LayerNorm (original):</strong></p>
+            <pre>x = LayerNorm(x + sublayer(x))</pre>
+            <p style="font-size:0.78rem;color:var(--muted);">Norm AFTER the residual. Harder to train deep models with. Prone to vanishing gradients.</p>
+        </div>
+    </div>
+    <div class="tip"><strong>Always use Pre-LN</strong> for decoder-only models. It's more stable, especially at initialization, and allows training deeper models without warmup tricks.</div>
+    <table>
+        <tr><th>Norm Type</th><th>Normalizes</th><th>When to Use</th></tr>
+        <tr><td>LayerNorm</td><td>Over feature dim (d_model)</td><td>Standard for Transformers. Works with any seq length.</td></tr>
+        <tr><td>RMSNorm</td><td>RMS of features (no mean subtraction)</td><td>Faster than LayerNorm. Used in Llama. Slightly less expressive.</td></tr>
+        <tr><td>BatchNorm</td><td>Over batch dim</td><td>NOT recommended for Transformers. Varies with seq length, causes training instability.</td></tr>
+    </table>
+</div>
+
+<h3 id="causal">6. Causal Masking & Causal-Carry Mismatch</h3>
+<div class="card">
+    <p style="font-size:0.85rem;"><strong>Causal Mask:</strong></p>
+    <pre>def causal_mask(size):
+    mask = torch.triu(torch.ones(size, size), diagonal=1).bool()
+    return mask  # True = positions to mask (future tokens)</pre>
+    <p style="font-size:0.85rem;margin-top:10px;"><strong>Applied as:</strong> <code>scores = scores.masked_fill(mask, -1e9)</code> before softmax.</p>
+
+    <div class="warn" style="margin-top:12px;">
+        <strong>Causal-Carry Mismatch (the most common bug in math transformers):</strong>
+        Standard next-token prediction uses causal masking: token at position <em>i</em> can only see tokens 0...<em>i</em>. For math (e.g., addition), the result is computed RIGHT-to-LEFT (least significant digit first), but the model reads LEFT-to-RIGHT.
+        This means the model must predict the result's most significant digit <strong>before</strong> seeing the least significant digits of the operands — an impossible task without carry propagation.
+    </div>
+
+    <p style="font-size:0.85rem;margin-top:10px;"><strong>Tabula Rasa fix (V1.2):</strong></p>
+    <ol style="font-size:0.85rem;">
+        <li><strong>Reversed digits</strong> — Store operands with digits reversed: 123 + 456 becomes 321 + 654. Now the model processes LSD first, matching the right-to-left computation.</li>
+        <li><strong>Loss masking</strong> — Only compute loss on the result tokens, not on the operand tokens. This prevents the model from "wasting" capacity on reconstructing inputs.</li>
+        <li><strong>Result-first format</strong> — Place the result BEFORE the operands: <code>=579 | 123+456</code>. The model generates the answer token-by-token right-to-left, then sees the question.</li>
+    </ol>
+
+    <div class="tip"><strong>Check:</strong> If accuracy is stuck near 0% on addition but loss decreases normally, you almost certainly have Causal-Carry Mismatch. Enable reversed digits + loss masking.</div>
+</div>
+
+<h3 id="params">7. Parameter Counting</h3>
+<div class="card">
+    <table>
+        <tr><th>Component</th><th>Parameter Count</th><th>Example (d=128, L=4, h=4, df=512, v=24)</th></tr>
+        <tr><td>Token Embedding</td><td><code>vocab * d_model</code></td><td>24 x 128 = 3,072</td></tr>
+        <tr><td>Position Embedding</td><td><code>max_seq * d_model</code></td><td>64 x 128 = 8,192</td></tr>
+        <tr><td>Attention (per layer)</td><td><code>4 * d_model^2</code></td><td>4 x 16384 = 65,536</td></tr>
+        <tr><td>FFN (per layer)</td><td><code>2 * d_model * d_ff</code></td><td>2 x 128 x 512 = 131,072</td></tr>
+        <tr><td>LayerNorms (per layer)</td><td><code>2 * d_model</code></td><td>2 x 128 = 256</td></tr>
+        <tr><td>Output (unembed)</td><td><code>d_model * vocab</code></td><td>128 x 24 = 3,072</td></tr>
+        <tr><td><strong>Total</strong></td><td></td><td><strong>~1,055,872</strong></td></tr>
+    </table>
+    <div class="tip"><strong>Rule of thumb:</strong> Attention contributes ~25-35% of params, FFN contributes ~55-65%. If your model is FFN-heavy, it has more memorization capacity. If attention-heavy, it has more relational capacity.</div>
+</div>
+
+<h3 id="debug">8. Debugging Checklist</h3>
+<div class="card">
+    <p style="font-size:0.85rem;margin-bottom:8px;">When a transformer isn't learning, run through these checks <strong>in order:</strong></p>
+    <ol style="font-size:0.82rem;">
+        <li><strong>NaN check:</strong> <code>torch.isnan(loss).any()</code> — if NaN, check LR and init</li>
+        <li><strong>Loss magnitude:</strong> Is loss decreasing from initial value? If loss is flat from step 0 → check data format</li>
+        <li><strong>Initial loss sanity:</strong> For vocab_size=V, initial loss should be ~ln(V). If much lower, something is wrong.</li>
+        <li><strong>Gradient norm:</strong> Should be <code>0.1 - 10</code>. Near 0 = vanishing, > 100 = exploding</li>
+        <li><strong>Overfit test:</strong> Train on 5 samples. Does the model reach 100% accuracy? If not, architecture may be broken.</li>
+        <li><strong>Shape check:</strong> Print all tensor shapes in forward pass. Verify [batch, seq, d_model] throughout.</li>
+        <li><strong>Mask check:</strong> Print attention weights. Upper-right triangle should be exactly zero.</li>
+        <li><strong>Residual check:</strong> Verify that the output from each block has the same norm scale as the input. Growing norms = instability.</li>
+        <li><strong>Data format:</strong> Print a batch of tokenized inputs and targets. Verify tokens align with expected vocabulary.</li>
+        <li><strong>Learning rate:</strong> Try lr=3e-4 as default. If loss oscillates, lower it. If loss decreases too slowly, increase it.</li>
+    </ol>
+</div>
+
+<h3 id="common">9. Common Pitfalls</h3>
+<div class="card">
+    <table>
+        <tr><th>Pitfall</th><th>Symptom</th><th>Fix</th></tr>
+        <tr><td>Missing causal mask</td><td>Model too good at eval (leaks future)</td><td>Add <code>torch.triu(mask, diagonal=1)</code></td></tr>
+        <tr><td>Causal-Carry Mismatch</td><td>Math accuracy near 0%</td><td>Reversed digits + loss masking</td></tr>
+        <tr><td>Wrong softmax dim</td><td>Attention weights look weird (rows don't sum to 1)</td><td>Use <code>dim=-1</code></td></tr>
+        <tr><td>No sqrt(d_k) scaling</td><td>Attention is one-hot (collapsed)</td><td>Divide by <code>sqrt(d_k)</code></td></tr>
+        <tr><td>d_model not divisible by n_heads</td><td>Shape error or silent truncation</td><td>Make d_model multiple of n_heads</td></tr>
+        <tr><td>Forgetting residual connections</td><td>Gradients vanish, model doesn't learn</td><td>Add <code>x + sublayer(x)</code></td></tr>
+        <tr><td>Wrong padding mask</td><td>Model attends to pad tokens</td><td>Mask pad positions with -1e9</td></tr>
+        <tr><td>No positional encoding</td><td>Model treats input as bag of tokens</td><td>Add learned/sinusoidal pos encoding</td></tr>
+        <tr><td>LR too high (lr > 1e-3)</td><td>Loss oscillates or goes to NaN</td><td>Use lr = 3e-4 for AdamW</td></tr>
+        <tr><td>Post-LN with deep model</td><td>Training unstable, needs careful warmup</td><td>Switch to Pre-LN</td></tr>
+        <tr><td>Tied embeddings incorrectly</td><td>Output layer wrong shape</td><td>Only tie if d_model == vocab_size</td></tr>
+        <tr><td>Wrong dropout order</td><td>Dropout blocks residual flow</td><td>Apply dropout AFTER residual add, not before</td></tr>
+    </table>
+</div>
+
+<h3 id="init-values">10. Recommended Default Values</h3>
+<div class="card">
+    <table>
+        <tr><th>Hyperparameter</th><th>Default</th><th>Range</th><th>Notes</th></tr>
+        <tr><td>Learning rate</td><td>3e-4</td><td>1e-4 to 1e-3</td><td>AdamW. Lower for small models, higher for large</td></tr>
+        <tr><td>AdamW beta1</td><td>0.9</td><td>-</td><td>Standard</td></tr>
+        <tr><td>AdamW beta2</td><td>0.999</td><td>-</td><td>Standard</td></tr>
+        <tr><td>Weight decay</td><td>0.01</td><td>0.0 to 0.1</td><td>Helps prevent overfitting</td></tr>
+        <tr><td>Dropout</td><td>0.1</td><td>0 to 0.3</td><td>Higher = more regularization</td></tr>
+        <tr><td>Gradient clipping</td><td>1.0</td><td>0.5 to 10.0</td><td>Max norm. Prevents exploding gradients</td></tr>
+        <tr><td>Warmup steps</td><td>500</td><td>100 to 2000</td><td>Linear warmup. Helps early training stability</td></tr>
+        <tr><td>Batch size</td><td>32</td><td>8 to 128</td><td>Smaller = noisier gradients, faster per step</td></tr>
+        <tr><td>d_ff / d_model ratio</td><td>4x</td><td>2x to 8x</td><td>FFN proportional to d_model</td></tr>
+        <tr><td>GELU activation</td><td>Use GELU</td><td>ReLU, GELU, SwiGLU</td><td>GELU > ReLU for Transformers (smoother gradient)</td></tr>
+    </table>
+    <div class="tip" style="margin-top:10px;">
+        <strong>Quick-start config for a math transformer:</strong> d_model=128, n_layers=4, n_heads=4, d_ff=512, vocab=24, max_seq=64,
+        lr=3e-4, batch=32, reversed_digits=True, loss_masking=True, causal_mask=True, warmup=500, clip=1.0.
+        This runs at ~0.4 steps/s on CPU and can reach >90% accuracy on 1-2 digit addition in ~20K steps.
+    </div>
+</div>
+
+<script>
+// Smooth scroll for TOC links
+document.querySelectorAll('.toc a').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+        e.preventDefault();
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) target.scrollIntoView({behavior:'smooth'});
+    });
+});
+</script>
+</body>
+</html>

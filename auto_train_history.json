@@ -1,0 +1,23 @@
+{
+  "target": 50.0,
+  "budget": 500,
+  "deep": false,
+  "final_accuracies": {
+    "add": 6.0
+  },
+  "passed": 0,
+  "total": 1,
+  "history": [
+    {
+      "round": 1,
+      "trained_op": "add",
+      "before_acc": 6.0,
+      "steps_used": 500,
+      "total_steps": 500,
+      "time_seconds": 72,
+      "all_accuracies": {
+        "add": 6.0
+      }
+    }
+  ]
+}

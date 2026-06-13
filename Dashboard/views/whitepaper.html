@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whitepaper — Tabula Rasa v1.3</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 960px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h2 span { font-size: 0.75rem; color: var(--muted); font-weight: normal; margin-left: auto; }
+        h3 { color: #60a5fa; font-size: 1.05rem; margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(59,130,246,0.2); }
+        h4 { color: var(--text); font-size: 0.9rem; margin: 16px 0 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+        .toc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; }
+        .toc a { color: var(--accent); text-decoration: none; padding: 6px 10px; border-radius: 4px; }
+        .toc a:hover { background: rgba(59,130,246,0.1); }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+        .pill { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; color: var(--accent); }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .by { background: rgba(234,179,8,0.15); color: #facc15; }
+        .bp { background: rgba(168,85,247,0.15); color: #c084fc; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); }
+        .row span:last-child { font-weight: 600; }
+        .row:last-child { border-bottom: none; }
+        pre { background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; overflow-x: auto; color: #d1d5db; line-height: 1.6; margin: 10px 0; }
+        code { background: rgba(255,255,255,0.05); padding: 2px 5px; border-radius: 3px; font-size: 0.8rem; }
+        blockquote { border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; background: rgba(59,130,246,0.05); border-radius: 0 6px 6px 0; color: var(--muted); font-style: italic; }
+    </style>
+</head>
+<body>
+    <h2>&#x1F4D6; Tabula Rasa AI Whitepaper <span>v1.3 &mdash; June 2026</span></h2>
+
+    <div class="card">
+        <h3>&#x1F4DC; Abstract</h3>
+        <p style="font-size:0.9rem;color:#d1d5db;line-height:1.7;">
+            Tabula Rasa is a blank-slate artificial intelligence system that learns skills from scratch, one at a time,
+            without pretraining on massive corpora. Unlike conventional LLMs that download a frozen brain from the internet,
+            Tabula Rasa begins as a random weight matrix &mdash; a digital toddler knowing nothing &mdash; and develops
+            &ldquo;IQ&rdquo; through structured training, self-improvement, and specialist specialization.
+        </p>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="badge bg">Developmental Learning</span>
+            <span class="badge bg">Scratchpad Reasoning</span>
+            <span class="badge bg">Self-Improvement</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>&#x1F4CB; Table of Contents</h3>
+        <div class="toc">
+            <a href="#sec1">1. Philosophy</a>
+            <a href="#sec2">2. Architecture</a>
+            <a href="#sec3">3. Training Pipeline</a>
+            <a href="#sec4">4. Scratchpad Reasoning</a>
+            <a href="#sec5">5. Results</a>
+            <a href="#sec6">6. Dashboard</a>
+            <a href="#sec7">7. P2P Swarm</a>
+            <a href="#sec8">8. Roadmap</a>
+            <a href="#sec9">9. Conclusion</a>
+        </div>
+    </div>
+
+    <div class="card" id="sec1">
+        <h3>&#x1F4AD; 1. Philosophy &mdash; The Blank Slate</h3>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;">
+            Drawing from Piaget's developmental psychology and Locke's tabula rasa concept, the system starts with
+            zero knowledge. Every capability &mdash; every concept, every operation, every word &mdash; must be learned
+            through experience. This mirrors how biological intelligence develops: a human infant knows nothing and
+            spends years building mental models through interaction.
+        </p>
+        <div class="g3" style="margin-top:14px;">
+            <div><span class="badge bg">Lifelong Learning</span><br><span style="font-size:0.75rem;color:var(--muted);">Separate transformers per skill prevent forgetting</span></div>
+            <div><span class="badge bg">Honest Ignorance</span><br><span style="font-size:0.75rem;color:var(--muted);">"I don't know about that yet." &mdash; No hallucination</span></div>
+            <div><span class="badge bg">Reasoning over Engineering</span><br><span style="font-size:0.75rem;color:var(--muted);">Scratchpad tokens > Python pipeline code</span></div>
+        </div>
+    </div>
+
+    <div class="card" id="sec2">
+        <h3>&#x2699;&#xFE0F; 2. Architecture</h3>
+        <div class="g2">
+            <div>
+                <h4>&#x1F4A1; Core Transformer</h4>
+                <div class="row"><span>Parameters</span><span>1,060,992</span></div>
+                <div class="row"><span>Layers</span><span>4 (2-6 tested, sweet spot)</span></div>
+                <div class="row"><span>Attention Heads</span><span>4</span></div>
+                <div class="row"><span>d_model</span><span>128</span></div>
+                <div class="row"><span>d_ff</span><span>512</span></div>
+                <div class="row"><span>Activation</span><span>SwiGLU (ReLU/GELU optional)</span></div>
+                <div class="row"><span>Position Encoding</span><span>RoPE</span></div>
+                <div class="row"><span>Normalization</span><span>RMSNorm</span></div>
+                <div class="row"><span>Vocabulary</span><span>44 tokens (4 special, 20 math, 20 carry-digit)</span></div>
+            </div>
+            <div>
+                <h4>&#x1F9EA; V2 Input Format — Fused Carry-Digit Tokens</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    Digits are <strong>reversed</strong> (LSD first). Each column's output is a <strong>single fused token</strong>
+                    <code>f'{carry}{digit}'</code>, e.g. <code>"13"</code> = carry=1, digit=3.
+                    No dots, no separators. 20 new vocab entries.
+                </p>
+                <pre>Input:  38+45=
+Output: 83+54=1308
+        ^ LSD-first    ^ fused: carry=1,digit=3 | carry=0,digit=8
+        Ones: 8+5=13 → token "13"
+        Tens: 3+4+1=8 → token "08"</pre>
+                <p style="font-size:0.8rem;color:var(--muted);margin-top:4px;">
+                    Fused tokens broke the 0.55 loss wall. Without them, carry and digit compete for gradient.
+                    With combined tokens, <strong>100% of gradient</strong> goes to each answer position.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="sec3">
+        <h3>&#x1F3CB;&#xFE0F; 3. Training Pipeline</h3>
+        <div class="g2">
+            <div>
+                <h4>Data Generation</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    Synthetic curriculum with configurable digit range, carry ratio, and scratchpad format.
+                    Problems generated on-the-fly: 100K samples in ~1 second.
+                </p>
+                <h4 style="margin-top:10px;">Key Hyperparameters</h4>
+                <div class="row"><span>Batch size</span><span>256</span></div>
+                <div class="row"><span>Learning rate</span><span>5e-4 (cosine schedule)</span></div>
+                <div class="row"><span>Warmup steps</span><span>500</span></div>
+                <div class="row"><span>Max steps</span><span>50,000</span></div>
+                <div class="row"><span>Grad clipping</span><span>1.0</span></div>
+                <div class="row"><span>Force carry ratio</span><span>50%</span></div>
+            </div>
+            <div>
+                <h4>V1.2 Techniques (Proven)</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    <strong>Reversed digits</strong> &mdash; Digit strings reversed so carry propagates left-to-right.
+                    Eliminated the 5% accuracy cap that plagued the original format.
+                </p>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;margin-top:8px;">
+                    <strong>Loss masking</strong> &mdash; Prompt tokens set to ignore_index=-100.
+                    Forces model to focus 100% of capacity on answer generation. 2x convergence speed.
+                </p>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;margin-top:8px;">
+                    <strong>Windows DataLoader workaround</strong> &mdash; Fresh DataLoader created per epoch
+                    to avoid a PyTorch re-iteration hang on Windows. Manual batching disabled (too slow).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="sec4">
+        <h3>&#x1F9E9; 4. Scratchpad Reasoning</h3>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;margin-bottom:12px;">
+            The central innovation of V1.3. Instead of engineering a Python pipeline of sub-transformers
+            to handle carry propagation, the model outputs its internal reasoning as text tokens.
+        </p>
+        <div class="g2">
+            <div>
+                <h4>How It Works (V2 — Fused Tokens)</h4>
+                <pre>Expression: 38 + 45
+Reversed:   83 + 54
+Fused out:  1308
+            ^-- ones: 8+5=13 → token "13"
+                 ^-- tens: 3+4+1=8 → token "08"
+Parsed: take every 2nd char: "38"
+Accuracy: 51.3% vs 9% sub-transformer</pre>
+            </div>
+            <div>
+                <h4>Why Fused Tokens Beat Dots</h4>
+                <div style="font-size:0.8rem;color:var(--muted);line-height:1.8;">
+                    <div class="row"><span>Sub-transformer pipeline</span><span style="color:var(--red);">9% accuracy</span></div>
+                    <div class="row"><span>V1 dot scratchpad</span><span style="color:var(--orange);">~35%</span></div>
+                    <div class="row"><span>V2 fused carry-digit</span><span style="color:var(--green);">51.3% (4L, 1M params)</span></div>
+                    <div style="margin-top:8px;">
+                        <strong>The gradient problem:</strong> In V1 (dot format), carry and digit were separate tokens.
+                        The model could learn carry correctly but predict the wrong digit, getting 0 credit.
+                        <br><br>
+                        <strong>V2 fix:</strong> Fuse carry+digit into one token (20 new vocab entries).
+                        Now the model must predict both correctly in a single token.
+                        Loss dropped from stuck 0.55 to 0.01 in 2K steps.
+                    </div>
+                </div>
+            </div>
+        </div>
+        <h4 style="margin-top:12px;">Debugging Via Scratchpad</h4>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;">
+            Every model output is human-readable. If the model generates <code>.16.04</code> instead of <code>.13.08</code>,
+            you know exactly which column miscalculated the carry. This is column-level debugging without
+            writing any pipeline code.
+        </p>
+    </div>
+
+    <div class="card" id="sec5">
+        <h3>&#x1F4CA; 5. Results</h3>
+        <div class="g3">
+            <div style="background:var(--bg);border-radius:6px;padding:12px;text-align:center;">
+                <div style="font-size:1.5rem;font-weight:bold;color:var(--red);">9%</div>
+                <div style="font-size:0.75rem;color:var(--muted);">Sub-transformer pipeline</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:12px;text-align:center;">
+                <div style="font-size:1.5rem;font-weight:bold;color:var(--green);">51.3%</div>
+                <div style="font-size:0.75rem;color:var(--muted);">V2 fused tokens (4 layers, best)</div>
+            </div>
+            <div style="background:var(--bg);border-radius:6px;padding:12px;text-align:center;">
+                <div style="font-size:1.5rem;font-weight:bold;color:var(--purple);">54.8%</div>
+                <div style="font-size:0.75rem;color:var(--muted);">6 layers (diminishing returns)</div>
+            </div>
+        </div>
+
+        <h4 style="margin-top:16px;">Ablation Study — What Matters</h4>
+        <div class="g2">
+            <div>
+                <div class="row"><span>4 layers (baseline)</span><span style="color:var(--green);">51.3%</span></div>
+                <div class="row"><span>2 layers</span><span style="color:var(--red);">32.1%</span></div>
+                <div class="row"><span>6 layers</span><span style="color:var(--orange);">54.8%</span></div>
+                <div class="row"><span>8 layers</span><span style="color:var(--muted);">pending</span></div>
+                <div style="margin-top:8px;font-size:0.75rem;color:var(--muted);">
+                    4 layers is the sweet spot. 2 layers can't propagate carry across columns.
+                    6 layers only +3.5% but 50% more compute.
+                </div>
+            </div>
+            <div>
+                <div class="row"><span>Reversed digits ON</span><span style="color:var(--green);">51.3%</span></div>
+                <div class="row"><span>Reversed digits OFF</span><span style="color:var(--orange);">training...</span></div>
+                <div class="row"><span>Loss masking ON</span><span style="color:var(--green);">51.3%</span></div>
+                <div class="row"><span>Loss masking OFF</span><span style="color:var(--orange);">pending</span></div>
+                <div class="row"><span>SwiGLU activation</span><span style="color:var(--green);">51.3%</span></div>
+                <div class="row"><span>ReLU activation</span><span style="color:var(--orange);">pending</span></div>
+                <div class="row"><span>RoPE encoding</span><span style="color:var(--green);">51.3%</span></div>
+                <div class="row"><span>Learned encoding</span><span style="color:var(--orange);">pending</span></div>
+                <div style="margin-top:8px;font-size:0.75rem;color:var(--muted);">
+                    Ablations running via Experiment Comparator. Click to compare side-by-side.
+                </div>
+            </div>
+        </div>
+        <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
+            1-2 digit addition with carries. Each experiment logged automatically to the Experiment Comparator
+            with full config snapshot, accuracy, training time, and notes. The fused carry-digit token approach
+            broke the 0.55 loss plateau that plagued V1.
+        </p>
+    </div>
+
+    <div class="card" id="sec6">
+        <h3>&#x1F4BB; 6. Dashboard</h3>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;margin-bottom:12px;">
+            Fully offline, zero-dependency web UI. No CDNs, no build steps, no frameworks.
+            Canvas-based charts, sessionStorage persistence, dark theme.
+        </p>
+        <div class="g2">
+            <div>
+                <h4>&#x1F4C1; Views (25 pages)</h4>
+                <pre>Interaction:
+  Interactive Chat, Training Monitor
+Training:
+  Specialist Trainer, Model Config
+  Checkpoint Manager, GPU Training
+Analysis &amp; Debug:
+  Loss Curve Analyzer, Scratchpad Monitor
+  Error Analysis, Gradient Monitor
+  Attention Inspector, Data Explorer
+  Hyperparam Calculator
+  <strong style="color:var(--accent);">Experiment Comparator</strong>
+Visualization:
+  Network Viz, Token Inspector, API Playground
+System:
+  System Status, Memory Viewer, Sleep Cycle
+  Server Control, Log Viewer
+Reference:
+  Architecture Cheatsheet, Whitepaper
+  <strong style="color:var(--accent);">P2P Swarm</strong></pre>
+            </div>
+            <div>
+                <h4>&#x1F500; Key Features</h4>
+                <div style="font-size:0.8rem;color:#9ca3af;line-height:1.8;">
+                    &#x2022; 24 self-contained HTML views<br>
+                    &#x2022; Zero external dependencies<br>
+                    &#x2022; Canvas-based charts (no Chart.js)<br>
+                    &#x2022; sessionStorage for state persistence<br>
+                    &#x2022; Background job polling with dedup<br>
+                    &#x2022; Per-specialist Start/Pause/Stop<br>
+                    &#x2022; Developmental Stage Map<br>
+                    &#x2022; Live training log with copy<br>
+                    &#x2022; Scratchpad output viewer<br>
+                    &#x2022; Architecture cheatsheet<br>
+                    &#x2022; <strong>Experiment Comparator</strong> &mdash; track &amp; compare training runs<br>
+                    &#x2022; <strong>Specialist Exchange</strong> &mdash; export/import checkpoints for P2P sharing<br>
+                    &#x2022; <strong>Live Training Status</strong> &mdash; real-time step/loss/log display<br>
+                    &#x2022; <strong>Sorted table</strong> &mdash; click any column to sort by accuracy, layers, time, etc.<br>
+                    &#x2022; <strong>Side-by-side comparison</strong> &mdash; select 2-6 runs with best/worst highlighting<br>
+                    &#x2022; <strong>Per-experiment notes</strong> &mdash; annotate each run
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="sec7">
+        <h3>&#x1F310; 7. P2P Specialist Swarm</h3>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;margin-bottom:12px;">
+            A distributed network of Tabula Rasa nodes sharing trained specialists without a central server.
+            Every node is a peer: training new specialists, seeding them to the network, and consuming
+            specialists trained by others. Discovery happens via a Distributed Hash Table (DHT), transfers
+            are direct TCP streams, and trust is enforced by cryptographic hashes and benchmark gates.
+        </p>
+        <div class="g2">
+            <div>
+                <h4>&#x1F4E1; Discovery (DHT)</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    Each node runs a Kademlia DHT agent. On boot, it announces:
+                    <code style="display:block;margin:6px 0;">specialist_name + sha256(fisher.pt) + accuracy</code>
+                    Query the DHT by name: <code>"grammar"</code> → list of peers serving grammar specialists
+                    with their accuracy scores and Fisher hashes. Bootstrap from mDNS-discovered LAN peers
+                    or a hardcoded seed list.
+                </p>
+            </div>
+            <div>
+                <h4>&#x1F4E5; Transfer</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    The existing zip format (<code>model.pt + tokenizer.json + metadata.json</code>) is the
+                    wire format. Peers stream it over HTTP or TCP. After download, two verification gates:
+                </p>
+                <div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">
+                    <strong style="color:#fb7185;">1. Fisher hash match</strong> — sha256 of received
+                    <code>ewc_fisher.pt</code> must match the DHT announcement. Reject on mismatch.<br>
+                    <strong style="color:#22c55e;">2. Piaget benchmark</strong> — run 100 held-out problems.
+                    Reject if below 90% accuracy.
+                </div>
+            </div>
+        </div>
+        <div class="g2" style="margin-top:12px;">
+            <div>
+                <h4>&#x1F916; RemoteSpecialist Stub</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    For rare or experimental specialists, a stub class forwards inference to the peer over TCP
+                    without downloading the weights. The router calls <code>stub.generate(prompt)</code> and
+                    doesn't know it's talking to a remote peer. This enables a marketplace of live models.
+                </p>
+            </div>
+            <div>
+                <h4>&#x1F4B1; Exchange Protocol</h4>
+                <p style="font-size:0.8rem;color:var(--muted);line-height:1.6;">
+                    Optional give-to-get: "I'll give you my add(51%) if you give me your grammar(87%)."
+                    An exchange ledger tracks transactions. Prevents freeloading and incentivizes training
+                    high-quality specialists. Nodes that contribute rare specialists earn reputation.
+                </p>
+            </div>
+        </div>
+        <h4 style="margin-top:14px;">Implementation Phases</h4>
+        <div class="g2" style="font-size:0.75rem;color:#9ca3af;line-height:1.7;">
+            <div>
+                <span class="pill" style="background:rgba(34,211,238,0.1);border-color:rgba(34,211,238,0.2);color:#22d3ee;">Phase 1</span>
+                <strong>LAN Discovery</strong> — mDNS multicast. Nodes find each other on the same subnet.
+                Peer table in the Experiment Comparator. No DHT library needed.
+            </div>
+            <div>
+                <span class="pill" style="background:rgba(168,85,247,0.1);border-color:rgba(168,85,247,0.2);color:#a78bfa;">Phase 2</span>
+                <strong>DHT Overlay</strong> — kademlia (pure Python). Replace HTTP registry with
+                distributed key-value store. Fisher hash verification on both ends.
+            </div>
+            <div>
+                <span class="pill" style="background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.2);color:#fbbf24;">Phase 3</span>
+                <strong>Remote Stubs</strong> — RemoteSpecialist class for live inference.
+                Router dispatches to remote peers transparently.
+            </div>
+            <div>
+                <span class="pill" style="background:rgba(251,146,60,0.1);border-color:rgba(251,146,60,0.2);color:#fb923c;">Phase 4</span>
+                <strong>Exchange + NAT</strong> — give-to-get protocol, reputation tracking,
+                NAT punching for internet-wide peers.
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="sec8">
+        <h3>&#x1F4C5; 8. Roadmap</h3>
+        <div class="g2">
+            <div>
+                <h4>&#x2705; Implemented</h4>
+                <div style="font-size:0.8rem;color:#9ca3af;line-height:1.8;">
+                    &#x2705; Transformer from scratch (1M params)<br>
+                    &#x2705; Character-level tokenizer<br>
+                    &#x2705; Synthetic dataset generator<br>
+                    &#x2705; Training loop with curriculum<br>
+                    &#x2705; Reversed digits<br>
+                    &#x2705; Loss masking<br>
+                    &#x2705; Fused carry-digit tokens (V2 scratchpad)<br>
+                    &#x2705; Carry ratio balancing<br>
+                    &#x2705; Config-driven architecture<br>
+                    &#x2705; 24-page offline dashboard<br>
+                    &#x2705; Training Monitor with live chart<br>
+                    &#x2705; Loss Curve Analyzer<br>
+                    &#x2705; Gradient/Activation Monitor<br>
+                    &#x2705; Attention Pattern Inspector<br>
+                    &#x2705; Data Explorer<br>
+                    &#x2705; Error Analysis Dashboard<br>
+                    &#x2705; Hyperparameter Calculator<br>
+                    &#x2705; Architecture Cheatsheet<br>
+                    &#x2705; Parse_scratchpad_answer() evaluator<br>
+                    &#x2705; <strong>Experiment Comparator</strong> — track &amp; compare configs<br>
+                    &#x2705; <strong>Specialist Exchange</strong> — export/import checkpoints<br>
+                    &#x2705; <strong>Live Training Status</strong> — real-time dashboard panel<br>
+                    &#x2705; <strong>Ablation study</strong> — layers, reversed, masking, activation, pos encoding<br>
+                    &#x2705; <strong>P2P Swarm Design</strong> — architecture, DHT, trust model, phases
+                </div>
+            </div>
+            <div>
+                <h4>&#x23F3; Pending Ablations</h4>
+                <div style="font-size:0.8rem;color:#9ca3af;line-height:1.8;">
+                    &#x25B6; Reversed digits OFF (running now)<br>
+                    &#x25B6; Loss masking OFF<br>
+                    &#x25B6; ReLU activation<br>
+                    &#x25B6; Learned pos encoding<br>
+                    &#x25B6; 8 layers<br>
+                </div>
+                <h4 style="margin-top:16px;">&#x1F52E; Next Up</h4>
+                <div style="font-size:0.8rem;color:#9ca3af;line-height:1.8;">
+                    &#x25CB; 70%+ accuracy on multi-digit addition (1-4 digits)<br>
+                    &#x25CB; Subtraction, multiplication, division scratchpad<br>
+                    &#x25CB; <strong>P2P Phase 1:</strong> mDNS LAN discovery + peer table<br>
+                    &#x25CB; <strong>P2P Phase 2:</strong> kademlia DHT overlay<br>
+                    &#x25CB; <strong>P2P Phase 3:</strong> RemoteSpecialist stub for live inference<br>
+                    &#x25CB; <strong>P2P Phase 4:</strong> exchange protocol, reputation, NAT<br>
+                    &#x25CB; torch.compile optimization<br>
+                    &#x25CB; ONNX export for faster inference
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="sec9">
+        <h3>&#x1F3F7;&#xFE0F; 9. Conclusion</h3>
+        <blockquote>
+            Tabula Rasa represents a return to first principles in AI research. Rather than scaling models to trillions
+            of parameters and training on the entire internet, it asks: what can be learned from scratch, one skill at a time,
+            by a system that is honest about its own ignorance?
+        </blockquote>
+        <p style="font-size:0.85rem;color:#d1d5db;line-height:1.7;margin-top:10px;">
+            The fused carry-digit approach proves that a 1M-parameter transformer can learn column-by-column carry
+            propagation as text tokens &mdash; no Python pipeline needed. The Experiment Comparator turns every
+            training run into a reproducible data point, and the Specialist Exchange lets the community share
+            trained weights P2P. This is the "Tabula Rasa way": let the neural network learn the algorithm,
+            don't engineer it &mdash; and share what you've built.
+        </p>
+        <p style="font-size:0.85rem;color:var(--muted);margin-top:12px;text-align:center;">
+            &ldquo;I don't know about that yet.&rdquo; &mdash; Tabula Rasa AI
+        </p>
+    </div>
+
+    <div class="card" style="text-align:center;">
+        <p style="font-size:0.8rem;color:var(--muted);">
+            Dashboard v1.3 &mdash; Tabula Rasa Whitepaper
+        </p>
+    </div>
+</body>
+</html>

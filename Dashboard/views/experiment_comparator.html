@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Experiment Comparator</title>
+<style>
+:root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; --pink: #ec4899; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+h2 small { font-size: 0.7rem; color: var(--muted); font-weight: normal; }
+
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar button, .toolbar select { background: var(--panel); border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+.toolbar button:hover { background: #334155; }
+.toolbar .badge { font-size: 0.75rem; color: var(--muted); margin-left: 8px; }
+.btn-red { background: var(--red) !important; color: white !important; border-color: var(--red) !important; }
+.btn-red:hover { background: #dc2626 !important; }
+
+/* Table */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.78rem; white-space: nowrap; }
+th { position: sticky; top: 0; background: #1a2744; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; padding: 10px 8px; text-align: center; border-bottom: 2px solid var(--border); cursor: pointer; user-select: none; }
+th:hover { color: white; }
+th.sorted { color: var(--accent); }
+td { padding: 8px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); }
+tr:hover td { background: rgba(255,255,255,0.03); }
+tr.selected td { background: rgba(59,130,246,0.1); }
+tr.selected td:first-child { border-left: 3px solid var(--accent); }
+td:first-child { text-align: center; width: 40px; }
+td:nth-child(2) { font-weight: 600; color: var(--accent); }
+td.acc-high { color: var(--green); font-weight: bold; }
+td.acc-mid { color: var(--orange); }
+td.acc-low { color: var(--red); }
+td.num { font-family: monospace; font-size: 0.75rem; }
+td.notes-col { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+td.notes-col:hover { background: rgba(255,255,255,0.05); }
+td input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+/* Comparison panel */
+#compare-panel { display: none; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+#compare-panel.visible { display: block; }
+.cp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.cp-header h3 { font-size: 0.95rem; }
+.cp-header .close-btn { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
+.cp-header .close-btn:hover { color: white; }
+
+.cp-grid { display: grid; gap: 16px; }
+
+.cp-row { display: flex; gap: 20px; }
+.cp-label { min-width: 120px; color: var(--muted); font-size: 0.78rem; padding-top: 4px; flex-shrink: 0; }
+.cp-vals { display: flex; gap: 16px; flex: 1; }
+.cp-vals > div { flex: 1; text-align: center; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); }
+.cp-vals > div .val { font-size: 1.1rem; font-weight: bold; }
+.cp-vals > div .val-name { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+.cp-vals > div.best { border-color: var(--green); background: rgba(34,197,94,0.08); }
+.cp-vals > div.worst { border-color: var(--red); background: rgba(239,68,68,0.08); }
+.cp-vals > div .rank-badge { display: inline-block; background: var(--green); color: #000; font-size: 0.6rem; padding: 1px 6px; border-radius: 8px; font-weight: bold; margin-left: 4px; }
+.cp-vals > div.worst .rank-badge { background: var(--red); }
+.cp-vals > div .sub { font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+
+/* Notes modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 400px; max-width: 500px; }
+.modal h3 { margin-bottom: 12px; font-size: 0.95rem; }
+.modal textarea { width: 100%; min-height: 100px; background: #0f172a; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; font-size: 0.85rem; resize: vertical; }
+.modal .actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+.modal .actions button { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.8rem; }
+.modal .actions .save-btn { background: var(--accent); color: white; }
+.modal .actions .cancel-btn { background: var(--border); color: white; }
+
+/* Action bar */
+.action-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; font-size: 0.78rem; color: var(--muted); }
+
+/* Loading */
+.loading { text-align: center; padding: 60px; color: var(--muted); font-size: 0.9rem; }
+.loading .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Chart bars in table */
+.bar-wrap { display: inline-flex; align-items: center; gap: 4px; }
+.bar { height: 14px; border-radius: 3px; min-width: 2px; }
+.bar-green { background: var(--green); }
+.bar-orange { background: var(--orange); }
+.bar-red { background: var(--red); }
+.bar-blue { background: var(--accent); }
+.bar-purple { background: var(--purple); }
+</style>
+</head>
+<body>
+<h2>&#x1F4CA; Experiment Comparator <small>track &amp; compare training runs</small></h2>
+
+<!-- Live status panel -->
+<div id="status-panel" style="display:none; background:var(--panel); border:1px solid var(--accent); border-radius:10px; padding:14px 18px; margin-bottom:16px;">
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="status-pulse" style="width:10px;height:10px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite;"></span>
+      <span style="font-weight:600;font-size:0.9rem;">&#x2697; Training Running</span>
+    </div>
+    <span id="status-op" style="font-size:0.85rem;color:var(--accent);font-weight:600;"></span>
+    <span id="status-step" style="font-size:0.8rem;color:var(--muted);"></span>
+    <span id="status-loss" style="font-size:0.8rem;color:var(--orange);"></span>
+    <span id="status-progress" style="font-size:0.75rem;color:var(--green);"></span>
+    <span id="status-time" style="font-size:0.75rem;color:var(--muted);"></span>
+  </div>
+  <div id="status-config" style="margin-top:6px;font-size:0.7rem;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;"></div>
+</div>
+
+<style>
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+</style>
+
+<div class="toolbar">
+  <button onclick="refreshExperiments()">&#x21BB; Refresh</button>
+  <span style="color:var(--muted);font-size:0.78rem;">|</span>
+  <button onclick="compareSelected()">&#x2696; Compare Selected</button>
+  <button id="delete-btn" class="btn-red" onclick="deleteSelected()" disabled>&#x1F5D1; Delete Selected</button>
+  <span class="badge" id="exp-count">0 experiments</span>
+  <span style="flex:1"></span>
+  <select id="op-filter" onchange="filterExperiments()">
+    <option value="all">All ops</option>
+    <option value="add">Addition</option>
+    <option value="sub">Subtraction</option>
+    <option value="mul">Multiplication</option>
+    <option value="div">Division</option>
+  </select>
+  <button onclick="clearAllExperiments()" class="btn-red" style="font-size:0.7rem;padding:4px 8px;">Clear All</button>
+</div>
+
+<div id="loading" class="loading">
+  <div class="spinner"></div>
+  <div>Loading experiments...</div>
+</div>
+
+<div id="compare-panel"></div>
+
+<!-- Log viewer -->
+<div id="log-section" style="display:none; margin-bottom:16px;">
+  <div style="background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border); cursor:pointer;" onclick="toggleLog()">
+      <span style="font-size:0.85rem;font-weight:600;">&#x1F4DD; Training Log <span id="log-line-count" style="color:var(--muted);font-weight:normal;font-size:0.75rem;"></span></span>
+      <span id="log-toggle-icon" style="color:var(--muted);font-size:0.8rem;">&#x25BC;</span>
+    </div>
+    <div id="log-content" style="display:none; background:#000; padding:12px 16px; font-family:monospace; font-size:0.75rem; max-height:300px; overflow-y:auto; color:#d1d5db; line-height:1.5;"></div>
+  </div>
+</div>
+
+<div id="table-wrap" class="table-wrap" style="display:none;">
+  <!-- Specialist Exchange panel -->
+  <div style="padding:12px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+    <span style="font-size:0.85rem;font-weight:600;">&#x1F4E4; Specialist Exchange</span>
+    <div style="display:flex; gap:6px;">
+      <input type="text" id="import-url" placeholder="URL or file path..." style="background:#0f172a;border:1px solid var(--border);color:white;padding:4px 8px;border-radius:4px;font-size:0.75rem;width:250px;">
+      <button onclick="importCheckpoint()" style="background:var(--accent);border:none;color:white;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:0.75rem;">&#x2B07; Import</button>
+    </div>
+  </div>
+  <div id="exchange-list" style="padding:8px 16px 12px;font-size:0.75rem;color:var(--muted);"></div>
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+        <th data-key="id" onclick="sortBy('id')">#</th>
+        <th data-key="operation" onclick="sortBy('operation')">Op</th>
+        <th data-key="timestamp" onclick="sortBy('timestamp')">Date</th>
+        <th data-key="best_accuracy" onclick="sortBy('best_accuracy')">Accuracy</th>
+        <th data-key="n_layers" onclick="sortBy('n_layers')">Layers</th>
+        <th data-key="d_model" onclick="sortBy('d_model')">d_model</th>
+        <th data-key="n_heads" onclick="sortBy('n_heads')">Heads</th>
+        <th data-key="d_ff" onclick="sortBy('d_ff')">d_ff</th>
+        <th data-key="total_params" onclick="sortBy('total_params')">Params</th>
+        <th data-key="vocab_size" onclick="sortBy('vocab_size')">Vocab</th>
+        <th data-key="learning_rate" onclick="sortBy('learning_rate')">LR</th>
+        <th data-key="batch_size" onclick="sortBy('batch_size')">BS</th>
+        <th data-key="activation" onclick="sortBy('activation')">Act</th>
+        <th data-key="norm_type" onclick="sortBy('norm_type')">Norm</th>
+        <th data-key="pos_encoding" onclick="sortBy('pos_encoding')">Pos</th>
+        <th data-key="use_reversed" onclick="sortBy('use_reversed')">Rev</th>
+        <th data-key="use_loss_masking" onclick="sortBy('use_loss_masking')">Mask</th>
+        <th data-key="optimizer" onclick="sortBy('optimizer')">Opt</th>
+        <th data-key="training_time_seconds" onclick="sortBy('training_time_seconds')">Time</th>
+        <th data-key="steps_per_sec" onclick="sortBy('steps_per_sec')">sp/s</th>
+        <th data-key="notes" onclick="sortBy('notes')">Notes</th>
+        <th style="width:50px;">&#x1F4E4;</th>
+      </tr>
+    </thead>
+    <tbody id="exp-body"></tbody>
+  </table>
+</div>
+
+<!-- Notes edit modal -->
+<div class="modal-overlay" id="notes-modal">
+  <div class="modal">
+    <h3>&#x1F4DD; Edit Notes</h3>
+    <p style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">Experiment #<span id="notes-exp-id"></span></p>
+    <textarea id="notes-text" placeholder="What was special about this run? What did you learn?"></textarea>
+    <div class="actions">
+      <button class="cancel-btn" onclick="closeNotesModal()">Cancel</button>
+      <button class="save-btn" onclick="saveNotes()">Save Notes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var API = document.location.port === '8080' ? 'http://localhost:8000' : '';
+var experiments = [];
+var sortKey = 'id';
+var sortAsc = false;
+var notesExpId = null;
+
+function fmt(n) {
+  if (n === null || n === undefined) return '-';
+  if (typeof n === 'number') {
+    if (Number.isInteger(n)) return n.toLocaleString();
+    return n.toFixed(4);
+  }
+  return n;
+}
+
+function accuracyClass(acc) {
+  if (acc === null || acc === undefined) return '';
+  if (acc >= 80) return 'acc-high';
+  if (acc >= 40) return 'acc-mid';
+  return 'acc-low';
+}
+
+function accuracyBar(acc) {
+  if (acc === null || acc === undefined) return '';
+  var w = Math.max(2, Math.round(acc * 0.6));
+  if (w > 60) w = 60;
+  var cls = acc >= 80 ? 'bar-green' : acc >= 40 ? 'bar-orange' : 'bar-red';
+  return '<div class="bar-wrap"><div class="bar ' + cls + '" style="width:' + w + 'px"></div>' + (acc !== null ? acc.toFixed(1) + '%' : '-%') + '</div>';
+}
+
+function formatTime(sec) {
+  if (!sec) return '-';
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) return (sec/60).toFixed(1) + 'm';
+  return (sec/3600).toFixed(1) + 'h';
+}
+
+function formatDate(ts) {
+  if (!ts) return '-';
+  var d = new Date(ts);
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+}
+
+function renderTable() {
+  var opFilter = document.getElementById('op-filter').value;
+  var filtered = opFilter === 'all' ? experiments : experiments.filter(function(e) { return e.operation === opFilter; });
+  
+  var sorted = filtered.slice().sort(function(a, b) {
+    var av = a[sortKey], bv = b[sortKey];
+    if (av === null || av === undefined) av = '';
+    if (bv === null || bv === undefined) bv = '';
+    if (typeof av === 'string') {
+      var cmp = av.localeCompare(String(bv));
+      return sortAsc ? cmp : -cmp;
+    }
+    return sortAsc ? (av - bv) : (bv - av);
+  });
+
+  document.getElementById('exp-count').textContent = experiments.length + ' experiments (' + sorted.length + ' shown)';
+
+  var html = '';
+  for (var i = 0; i < sorted.length; i++) {
+    var e = sorted[i];
+    var accVal = e.best_accuracy !== null && e.best_accuracy !== undefined ? e.best_accuracy : '';
+    html += '<tr data-id="' + e.id + '">'
+      + '<td><input type="checkbox" class="exp-cb" value="' + e.id + '" onchange="updateDeleteBtn()"></td>'
+      + '<td>' + e.id + '</td>'
+      + '<td>' + (e.operation || '-') + '</td>'
+      + '<td style="font-size:0.7rem;color:var(--muted)">' + formatDate(e.timestamp) + '</td>'
+      + '<td class="' + accuracyClass(e.best_accuracy) + '">' + accuracyBar(e.best_accuracy) + '</td>'
+      + '<td class="num">' + fmt(e.n_layers) + '</td>'
+      + '<td class="num">' + fmt(e.d_model) + '</td>'
+      + '<td class="num">' + fmt(e.n_heads) + '</td>'
+      + '<td class="num">' + fmt(e.d_ff) + '</td>'
+      + '<td class="num" style="font-size:0.7rem">' + (e.total_params ? (e.total_params/1000).toFixed(0) + 'K' : '-') + '</td>'
+      + '<td class="num">' + fmt(e.vocab_size) + '</td>'
+      + '<td style="font-size:0.7rem">' + (e.learning_rate ? e.learning_rate.toExponential(1) : '-') + '</td>'
+      + '<td class="num">' + fmt(e.batch_size) + '</td>'
+      + '<td>' + (e.activation || '-') + '</td>'
+      + '<td>' + (e.norm_type || '-') + '</td>'
+      + '<td>' + (e.pos_encoding || '-') + '</td>'
+      + '<td>' + (e.use_reversed ? 'Y' : 'N') + '</td>'
+      + '<td>' + (e.use_loss_masking ? 'Y' : 'N') + '</td>'
+      + '<td>' + (e.optimizer || '-') + '</td>'
+      + '<td style="font-size:0.7rem">' + formatTime(e.training_time_seconds) + '</td>'
+      + '<td class="num">' + (e.steps_per_sec ? e.steps_per_sec.toFixed(1) : '-') + '</td>'
+      + '<td class="notes-col" onclick="openNotesModal(' + e.id + ')" title="' + (e.notes ? e.notes.replace(/"/g,'&quot;') : 'Click to add notes') + '">' + (e.notes ? e.notes.substring(0,30) + (e.notes.length > 30 ? '...' : '') : '<span style="color:#475569;">add note</span>') + '</td>'
+      + '<td><button onclick="exportCheckpoint(' + e.id + ')" style="background:var(--accent);border:none;color:white;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">Export</button></td>'
+      + '</tr>';
+  }
+  document.getElementById('exp-body').innerHTML = html;
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('table-wrap').style.display = '';
+}
+
+function refreshExperiments() {
+  document.getElementById('loading').style.display = '';
+  document.getElementById('table-wrap').style.display = 'none';
+  fetch((API || '') + '/api/experiments')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      experiments = data || [];
+      renderTable();
+    })
+    .catch(function(err) {
+      document.getElementById('loading').innerHTML = '<div style="color:var(--red)">&#x26A0; Could not load experiments: ' + err.message + '</div>';
+    });
+}
+
+function toggleSelectAll() {
+  var all = document.getElementById('select-all').checked;
+  var cbs = document.querySelectorAll('.exp-cb');
+  for (var i = 0; i < cbs.length; i++) cbs[i].checked = all;
+  updateDeleteBtn();
+}
+
+function updateDeleteBtn() {
+  var cbs = document.querySelectorAll('.exp-cb:checked');
+  document.getElementById('delete-btn').disabled = cbs.length === 0;
+}
+
+function getSelectedIds() {
+  var ids = [];
+  var cbs = document.querySelectorAll('.exp-cb:checked');
+  for (var i = 0; i < cbs.length; i++) ids.push(parseInt(cbs[i].value));
+  return ids;
+}
+
+function deleteSelected() {
+  var ids = getSelectedIds();
+  if (ids.length === 0) return;
+  if (!confirm('Delete ' + ids.length + ' experiment(s)?')) return;
+  experiments = experiments.filter(function(e) { return ids.indexOf(e.id) === -1; });
+  saveExperimentsToFile();
+  renderTable();
+}
+
+function clearAllExperiments() {
+  if (experiments.length === 0) return;
+  if (!confirm('Delete ALL ' + experiments.length + ' experiments? This cannot be undone.')) return;
+  experiments = [];
+  saveExperimentsToFile();
+  renderTable();
+}
+
+function saveExperimentsToFile() {
+  // Save via POST to replace all (delete = refilter + save)
+  fetch((API || '') + '/api/experiments', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({_replace_all: experiments})
+  }).catch(function(err) { console.error('Save failed:', err); });
+}
+
+function sortBy(key) {
+  if (sortKey === key) {
+    sortAsc = !sortAsc;
+  } else {
+    sortKey = key;
+    sortAsc = false;
+  }
+  // Update header indicators
+  var ths = document.querySelectorAll('th[data-key]');
+  for (var i = 0; i < ths.length; i++) ths[i].classList.remove('sorted');
+  var active = document.querySelector('th[data-key="' + key + '"]');
+  if (active) active.classList.add('sorted');
+  renderTable();
+}
+
+function filterExperiments() {
+  document.getElementById('select-all').checked = false;
+  renderTable();
+}
+
+function compareSelected() {
+  var ids = getSelectedIds();
+  if (ids.length < 1) { alert('Select at least 1 experiment to compare'); return; }
+  if (ids.length > 6) { alert('Maximum 6 experiments to compare'); return; }
+
+  var selected = experiments.filter(function(e) { return ids.indexOf(e.id) !== -1; });
+  renderComparisonPanel(selected);
+}
+
+function renderComparisonPanel(selected) {
+  var panel = document.getElementById('compare-panel');
+  panel.innerHTML = '';
+  panel.classList.add('visible');
+
+  // Determine metric comparisons
+  var metrics = [
+    {key: 'best_accuracy', label: 'Accuracy', fmt: function(v) { return v !== null && v !== undefined ? v.toFixed(1) + '%' : '-'; }, higher_is_better: true},
+    {key: 'total_params', label: 'Parameters', fmt: function(v) { return v ? (v/1000).toFixed(0) + 'K' : '-'; }, higher_is_better: false},
+    {key: 'n_layers', label: 'Layers', fmt: function(v) { return v !== null && v !== undefined ? v : '-'; }, higher_is_better: null},
+    {key: 'd_model', label: 'd_model', fmt: function(v) { return v !== null && v !== undefined ? v : '-'; }, higher_is_better: null},
+    {key: 'd_ff', label: 'FF Width', fmt: function(v) { return v !== null && v !== undefined ? v : '-'; }, higher_is_better: null},
+    {key: 'n_heads', label: 'Heads', fmt: function(v) { return v !== null && v !== undefined ? v : '-'; }, higher_is_better: null},
+    {key: 'training_time_seconds', label: 'Training Time', fmt: function(v) { return formatTime(v); }, higher_is_better: false},
+    {key: 'steps_per_sec', label: 'Steps/s', fmt: function(v) { return v ? v.toFixed(1) : '-'; }, higher_is_better: true},
+    {key: 'learning_rate', label: 'Learning Rate', fmt: function(v) { return v ? v.toExponential(1) : '-'; }, higher_is_better: null},
+    {key: 'batch_size', label: 'Batch Size', fmt: function(v) { return v || '-'; }, higher_is_better: null},
+  ];
+
+  var headerHtml = '<div class="cp-header">'
+    + '<h3>&#x2696; Side-by-Side Comparison</h3>'
+    + '<button class="close-btn" onclick="document.getElementById(\'compare-panel\').classList.remove(\'visible\')">&times;</button>'
+    + '</div>';
+
+  // Build comparison rows
+  var rowsHtml = '';
+  for (var m = 0; m < metrics.length; m++) {
+    var metric = metrics[m];
+    var values = selected.map(function(e) {
+      var raw = e[metric.key];
+      var formatted = metric.fmt(raw);
+      return {exp: e, raw: raw, formatted: formatted};
+    });
+
+    // Find best/worst if applicable
+    var bestIdx = -1, worstIdx = -1;
+    if (metric.higher_is_better !== null) {
+      var bestVal = null, worstVal = null;
+      for (var i = 0; i < values.length; i++) {
+        var v = values[i].raw;
+        if (v === null || v === undefined) continue;
+        if (bestVal === null || (metric.higher_is_better ? v > bestVal : v < bestVal)) {
+          bestVal = v; bestIdx = i;
+        }
+        if (worstVal === null || (metric.higher_is_better ? v < worstVal : v > worstVal)) {
+          worstVal = v; worstIdx = i;
+        }
+      }
+    }
+
+    var valsHtml = '';
+    for (var i = 0; i < values.length; i++) {
+      var cls = '';
+      var badge = '';
+      if (i === bestIdx && i === worstIdx && values.length > 1) {
+        // All same value — no highlight
+      } else if (i === bestIdx) {
+        cls = 'best';
+        badge = '<span class="rank-badge">&#x1F3C6; best</span>';
+      } else if (i === worstIdx) {
+        cls = 'worst';
+        badge = '<span class="rank-badge">&#x1F4A9;</span>';
+      }
+      valsHtml += '<div class="' + cls + '"><div class="val">' + values[i].formatted + badge + '</div><div class="val-name">#' + values[i].exp.id + ' ' + (values[i].exp.operation || '') + '</div></div>';
+    }
+
+    rowsHtml += '<div class="cp-row"><div class="cp-label">' + metric.label + '</div><div class="cp-vals">' + valsHtml + '</div></div>';
+  }
+
+  // Operation, activation, optimizer — text comparisons
+  var textMetrics = ['operation', 'activation', 'norm_type', 'pos_encoding', 'optimizer', 'use_reversed', 'use_loss_masking'];
+  for (var m = 0; m < textMetrics.length; m++) {
+    var key = textMetrics[m];
+    var label = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+    var valsHtml = '';
+    for (var i = 0; i < selected.length; i++) {
+      var v = selected[i][key];
+      var display = v === true ? 'Yes' : v === false ? 'No' : v || '-';
+      valsHtml += '<div><div class="val" style="font-size:0.9rem;">' + display + '</div><div class="val-name">#' + selected[i].id + '</div></div>';
+    }
+    rowsHtml += '<div class="cp-row"><div class="cp-label">' + label + '</div><div class="cp-vals">' + valsHtml + '</div></div>';
+  }
+
+  // Notes
+  var notesHtml = '';
+  for (var i = 0; i < selected.length; i++) {
+    notesHtml += '<div><div class="val" style="font-size:0.8rem;font-weight:normal;">' + (selected[i].notes || '<span style="color:#475569;">no notes</span>') + '</div><div class="val-name">#' + selected[i].id + '</div></div>';
+  }
+  rowsHtml += '<div class="cp-row"><div class="cp-label">Notes</div><div class="cp-vals">' + notesHtml + '</div></div>';
+
+  panel.innerHTML = headerHtml + '<div class="cp-grid">' + rowsHtml + '</div>';
+}
+
+function openNotesModal(id) {
+  notesExpId = id;
+  document.getElementById('notes-exp-id').textContent = id;
+  for (var i = 0; i < experiments.length; i++) {
+    if (experiments[i].id === id) {
+      document.getElementById('notes-text').value = experiments[i].notes || '';
+      break;
+    }
+  }
+  document.getElementById('notes-modal').classList.add('open');
+}
+
+function closeNotesModal() {
+  document.getElementById('notes-modal').classList.remove('open');
+  notesExpId = null;
+}
+
+function saveNotes() {
+  var text = document.getElementById('notes-text').value;
+  for (var i = 0; i < experiments.length; i++) {
+    if (experiments[i].id === notesExpId) {
+      experiments[i].notes = text;
+      break;
+    }
+  }
+  saveExperimentsToFile();
+  renderTable();
+  closeNotesModal();
+}
+
+// ─── Live training status poll ─────────────────────────────────
+var logExpanded = false;
+
+function toggleLog() {
+  logExpanded = !logExpanded;
+  document.getElementById('log-content').style.display = logExpanded ? '' : 'none';
+  document.getElementById('log-toggle-icon').textContent = logExpanded ? '\u25B2' : '\u25BC';
+  if (logExpanded) fetchLog();
+}
+
+function fetchLog() {
+  fetch((API || '') + '/training-log')
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      var lines = text.split('\n').filter(function(l) { return l.trim(); });
+      var last40 = lines.slice(-40);
+      document.getElementById('log-content').innerHTML = last40.map(function(l) {
+        var cls = '';
+        if (l.includes('Eval') || l.includes('accuracy') || l.includes('Acc')) cls = ' style="color:#22c55e"';
+        else if (l.includes('loss=')) cls = ' style="color:#60a5fa"';
+        else if (l.includes('Done') || l.includes('complete')) cls = ' style="color:#fbbf24"';
+        return '<div' + cls + '>' + l.replace(/</g,'&lt;') + '</div>';
+      }).join('');
+      document.getElementById('log-line-count').textContent = '(' + lines.length + ' lines)';
+      if (logExpanded) document.getElementById('log-content').scrollTop = document.getElementById('log-content').scrollHeight;
+    })
+    .catch(function() {});
+}
+
+// ─── Specialist Exchange ──────────────────────────────────────
+function exportCheckpoint(id) {
+  var exp = null;
+  for (var i = 0; i < experiments.length; i++) {
+    if (experiments[i].id === id) { exp = experiments[i]; break; }
+  }
+  if (!exp) return;
+
+  var btn = event.target;
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  fetch((API || '') + '/api/export', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({operation: exp.operation, experiment_id: id})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.textContent = 'Export';
+    btn.disabled = false;
+    if (d.ok) {
+      showToast('Exported: ' + d.entry.name + ' (' + d.entry.zip_size_kb + ' KB)');
+      refreshRegistry();
+    } else {
+      showToast('Export failed: ' + (d.error || 'unknown'), true);
+    }
+  })
+  .catch(function() { btn.textContent = 'Export'; btn.disabled = false; });
+}
+
+function importCheckpoint() {
+  var input = document.getElementById('import-url');
+  var val = input.value.trim();
+  if (!val) { showToast('Enter a URL or file path', true); return; }
+
+  var isUrl = val.startsWith('http://') || val.startsWith('https://');
+  var body = isUrl ? {url: val} : {source: val};
+
+  input.disabled = true;
+  fetch((API || '') + '/api/import', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    input.disabled = false;
+    if (d.ok) {
+      showToast('Imported ' + d.operation + ' specialist (' + (d.accuracy || '?') + '%)');
+      input.value = '';
+      refreshExperiments();
+      refreshRegistry();
+    } else {
+      showToast('Import failed: ' + (d.error || 'unknown'), true);
+    }
+  })
+  .catch(function() { input.disabled = false; });
+}
+
+function refreshRegistry() {
+  var list = document.getElementById('exchange-list');
+  fetch((API || '') + '/api/registry')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data || data.length === 0) {
+        list.innerHTML = 'No exported checkpoints yet. Click Export on a row to share.';
+        return;
+      }
+      var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+      for (var i = 0; i < data.length; i++) {
+        var e = data[i];
+        var acc = e.accuracy !== null && e.accuracy !== undefined ? e.accuracy.toFixed(1) + '%' : '?%';
+        html += '<span style="background:#0f172a80;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:0.72rem;display:inline-flex;align-items:center;gap:6px;">'
+          + '<span style="color:var(--accent);font-weight:600;">' + e.operation.toUpperCase() + '</span>'
+          + ' L' + e.n_layers + ' d' + e.d_model + ' acc=' + acc
+          + ' <span style="color:var(--muted);font-size:0.65rem;">' + e.zip_size_kb + 'KB</span>'
+          + '</span>';
+      }
+      html += '</div>';
+      list.innerHTML = html;
+    })
+    .catch(function() { list.innerHTML = 'Registry unavailable'; });
+}
+
+// Toast notification
+function showToast(msg, isError) {
+  var t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;border:1px solid var(--border);color:white;padding:10px 18px;border-radius:8px;font-size:0.8rem;z-index:999;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,0.4);transition:opacity 0.3s;';
+    document.body.appendChild(t);
+  }
+  t.style.borderColor = isError ? '#ef4444' : '#22c55e';
+  t.innerHTML = (isError ? '&#x26A0; ' : '&#x2714; ') + msg;
+  t.style.opacity = '1';
+  setTimeout(function() { t.style.opacity = '0'; }, 4000);
+}
+
+function pollTrainingStatus() {
+  fetch((API || '') + '/api/experiments/status')
+    .then(function(r) { return r.json(); })
+    .then(function(s) {
+      var panel = document.getElementById('status-panel');
+      if (s.running) {
+        panel.style.display = '';
+        document.getElementById('log-section').style.display = '';
+        if (!logExpanded && s.step > 0) {
+          // Auto-show log when training has data
+          toggleLog();
+        }
+        document.getElementById('status-op').textContent = (s.operation || 'add').toUpperCase();
+        document.getElementById('status-step').textContent = 'Step ' + s.step + '/' + s.max_steps;
+        document.getElementById('status-loss').textContent = 'loss=' + (s.loss ? s.loss.toFixed(4) : '?');
+        var pct = s.max_steps > 0 ? (s.step / s.max_steps * 100).toFixed(1) : '?';
+        document.getElementById('status-progress').textContent = pct + '%';
+        document.getElementById('status-time').textContent = 'updated ' + (s.last_update_seconds_ago || 0) + 's ago';
+
+        // Config chips
+        var cfgHtml = '';
+        var cfg = s.config || {};
+        var keys = ['n_layers', 'd_model', 'n_heads', 'd_ff', 'activation', 'use_reversed', 'use_loss_masking'];
+        for (var i = 0; i < keys.length; i++) {
+          if (cfg[keys[i]] !== undefined) {
+            var val = cfg[keys[i]];
+            if (val === 'True') val = 'Y';
+            else if (val === 'False') val = 'N';
+            cfgHtml += '<span style="background:#0f172a80;padding:2px 8px;border-radius:4px;border:1px solid var(--border);">' + keys[i] + '=' + val + '</span>';
+          }
+        }
+        document.getElementById('status-config').innerHTML = cfgHtml;
+      } else {
+        panel.style.display = 'none';
+        document.getElementById('log-section').style.display = 'none';
+      }
+    })
+    .catch(function() {
+      document.getElementById('status-panel').style.display = 'none';
+    });
+}
+
+// Also poll chain status
+function pollChainStatus() {
+  fetch((API || '') + '/api/chain-status')
+    .then(function(r) { return r.json(); })
+    .then(function(s) {
+      if (s.running && s.current_experiment) {
+        var panel = document.getElementById('status-panel');
+        panel.style.display = '';
+        document.getElementById('status-op').textContent = s.current_experiment;
+        document.getElementById('status-step').textContent = '';
+        document.getElementById('status-loss').textContent = '';
+        document.getElementById('status-progress').textContent = '';
+        document.getElementById('status-time').textContent = '';
+      }
+    })
+    .catch(function() {});
+}
+
+// Override saveExperimentsToFile
+saveExperimentsToFile = function() {
+  fetch((API || '') + '/api/experiments', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({_replace_all: experiments})
+  }).catch(function(err) { console.error('Save failed:', err); });
+};
+
+// Init
+refreshExperiments();
+refreshRegistry();
+pollTrainingStatus();
+setInterval(pollTrainingStatus, 15000);
+setInterval(function() { if (logExpanded) fetchLog(); }, 10000);
+setInterval(pollChainStatus, 15000);
+</script>
+</body>
+</html>

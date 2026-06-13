@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scratchpad Monitor</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 1100px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        .stat-box .sub { font-size: 0.7rem; color: #6b7280; margin-top: 2px; }
+        select, button { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+        button:hover { background: #1e293b; }
+        canvas { width: 100%; height: 220px; display: block; border-radius: 8px; background: #0a0f1e; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .running { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .stopped { background: var(--red); }
+        .sample-box { font-family: monospace; font-size: 0.85rem; padding: 8px 12px; border-radius: 6px; margin: 4px 0; background: #0f172a; border: 1px solid var(--border); }
+        .sample-box .q { color: var(--accent); } .sample-box .a { color: var(--green); }
+        .sample-box .sp { color: var(--orange); } .sample-box .err { color: var(--red); }
+        .sample-box .carry { color: #f472b6; font-weight: bold; }
+        .sample-box .digit { color: #22d3ee; }
+        .sample-box .sep { color: var(--muted); }
+        .parse-row { display: flex; gap: 12px; align-items: center; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(51,65,85,0.2); }
+        .parse-row .label { color: var(--muted); min-width: 80px; }
+        .parse-row .raw { font-family: monospace; color: var(--orange); }
+        .parse-row .parsed { font-family: monospace; color: var(--green); font-weight: bold; }
+        .parse-row .correct { color: var(--green); } .parse-row .wrong { color: var(--red); }
+        .log-box { background: #000; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 0.75rem; height: 200px; overflow-y: auto; color: #d1d5db; }
+        .log-box .s { color: #60a5fa; } .log-box .e { color: #34d399; } .log-box .r { color: #ef4444; }
+        .legend { display: flex; gap: 16px; font-size: 0.75rem; margin: 6px 0; }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .arrow { color: var(--muted); font-size: 0.7rem; margin: 0 4px; }
+        .train-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .train-bar .track { flex: 1; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; }
+        .train-bar .fill { height: 100%; border-radius: 4px; background: var(--accent); transition: width 2s; }
+    </style>
+</head>
+<body>
+<h2>&#x1F9E0; Scratchpad Training Monitor</h2>
+
+<div class="g4">
+    <div class="stat-box"><div class="v" id="sp-step">-</div><div class="l">Step</div><div class="sub" id="sp-total">/ 50000</div></div>
+    <div class="stat-box"><div class="v" id="sp-loss" style="color:var(--accent);">-</div><div class="l">Loss</div></div>
+    <div class="stat-box"><div class="v" id="sp-acc" style="color:var(--green);">-</div><div class="l">Best Accuracy</div></div>
+    <div class="stat-box"><div class="v" id="sp-speed">-</div><div class="l">Steps/s</div></div>
+</div>
+
+<div class="train-bar">
+    <span id="status-icon"><span class="status-dot running" id="train-dot"></span></span>
+    <span id="train-status" style="font-size:0.85rem;min-width:60px;">Running</span>
+    <div class="track"><div class="fill" id="progress-bar" style="width:0%;"></div></div>
+    <span style="font-size:0.75rem;color:var(--muted);" id="progress-pct">0%</span>
+    <span style="font-size:0.75rem;color:var(--muted);" id="eta-text">ETA: --</span>
+</div>
+
+<div class="g2">
+    <div class="card">
+        <h3>Loss Curve</h3>
+        <div class="legend">
+            <span class="legend-item"><span style="background:var(--red);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Loss</span>
+            <span class="legend-item"><span style="background:var(--green);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Eval Accuracy</span>
+        </div>
+        <canvas id="loss-chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Scratchpad Format</h3>
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;">
+            <code>.carry digit</code> per column, LSD first
+        </div>
+        <div class="sample-box" style="font-size:0.8rem;">
+            <span class="q">Input: </span><span class="sp">12+34</span><span class="sep">  </span>
+            <span class="a">Output: </span><span class="carry">.</span><span class="digit">0</span><span class="carry">4</span><span class="carry">.</span><span class="digit">0</span><span class="digit">6</span><span class="sep">  →  </span>
+            <span class="a">Answer: 46</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">
+            Ones: 1+3=<span style="color:#22d3ee;">4</span> carry=<span style="color:#f472b6;">0</span><br>
+            Tens: 2+4=<span style="color:#22d3ee;">6</span> carry=<span style="color:#f472b6;">0</span>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Live Scratchpad Samples</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button onclick="fetchSamples()">&#x1F504; Refresh Samples</button>
+        <span style="font-size:0.75rem;color:var(--muted);align-self:center;">Uses the latest checkpoint to generate scratchpad output</span>
+    </div>
+    <div id="samples-container">
+        <div style="color:var(--muted);font-size:0.85rem;">Click refresh to see the model's scratchpad output on test problems.</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Training Log</h3>
+    <div class="log-box" id="log-display">
+        <div class="s">[INFO] Waiting for training data...</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>&#x1F3AF; Health Check</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button onclick="fetchHealthCheck()">&#x1F504; Run Check</button>
+        <span style="font-size:0.75rem;color:var(--muted);align-self:center;">Compares current training against expected milestones</span>
+    </div>
+    <div id="health-container">
+        <div style="color:var(--muted);font-size:0.85rem;">Click "Run Check" or wait for auto-refresh.</div>
+    </div>
+    <div id="milestone-table" style="margin-top:10px;display:none;">
+        <pre style="font-family:monospace;font-size:0.75rem;color:#9ca3af;background:#0f172a;padding:8px;border-radius:4px;" id="milestone-pre"></pre>
+    </div>
+</div>
+
+<script>
+var API = 'http://localhost:8000';
+
+function fmtTime(s) {
+    if (!s || s < 0) return '-';
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var sec = s % 60;
+    return (h > 0 ? h + 'h ' : '') + (m > 0 ? m + 'm ' : '') + sec + 's';
+}
+
+function drawLossChart(steps, losses, accs) {
+    var c = document.getElementById('loss-chart');
+    var rect = c.parentElement.getBoundingClientRect();
+    var w = Math.min(rect.width - 20, 500);
+    c.width = w * 2;
+    c.height = 220 * 2;
+    c.style.width = w + 'px';
+    c.style.height = '220px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2, 2);
+    var W = c.width / 2, H = c.height / 2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!steps || steps.length < 2) {
+        ctx.fillStyle = '#475569';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Waiting for step 2000...', W / 2, H / 2);
+        return;
+    }
+
+    var minS = steps[0], maxS = steps[steps.length - 1];
+    var minL = Math.min.apply(null, losses);
+    var maxL = Math.max.apply(null, losses);
+    var padL = (maxL - minL) * 0.15 || 0.5;
+    var yMin = Math.max(0, minL - padL);
+    var yMax = maxL + padL;
+
+    var plotL = 60, plotR = W - 15, plotT = 15, plotB = H - 25;
+    var pw = plotR - plotL, ph = plotB - plotT;
+
+    function sx(v) { return plotL + (v - minS) / (maxS - minS) * pw; }
+    function ly(v) { return plotT + (1 - (v - yMin) / (yMax - yMin)) * ph; }
+
+    ctx.strokeStyle = 'rgba(51,65,85,0.5)';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i <= 4; i++) {
+        var y = plotT + i * ph / 4;
+        ctx.beginPath(); ctx.moveTo(plotL, y); ctx.lineTo(plotR, y); ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText((yMax - i * (yMax - yMin) / 4).toFixed(2), plotL - 5, y + 4);
+    }
+
+    // Loss line
+    ctx.beginPath();
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    for (var i = 0; i < steps.length; i++) {
+        var x = sx(steps[i]), y = ly(losses[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Accuracy dots
+    if (accs && accs.length) {
+        for (var i = 0; i < accs.length; i++) {
+            var ai = accs[i];
+            if (ai.step === undefined || ai.acc === undefined) continue;
+            var x = sx(ai.step);
+            var accH = (ai.acc / 100) * ph;
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.arc(x, plotT + ph - accH, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#0a0f1e';
+            ctx.beginPath();
+            ctx.arc(x, plotT + ph - accH, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#22c55e';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(ai.acc + '%', x, plotT + ph - accH - 8);
+        }
+    }
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Step', W / 2, H - 4);
+    ctx.save();
+    ctx.translate(12, H / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('Loss', 0, 0);
+    ctx.restore();
+}
+
+function updateLog(lines) {
+    var el = document.getElementById('log-display');
+    el.innerHTML = lines.slice(-50).join('');
+    el.scrollTop = el.scrollHeight;
+}
+
+// Parse the training log for scratchpad-specific info
+function parseScratchpadLog(text) {
+    var lines = text.split('\n').filter(function(l) { return l.trim(); });
+    var steps = [], losses = [], accs = [];
+    var lastStep = 0, lastLoss = null, lastAcc = null, bestAcc = null, stepsPerSec = null;
+    // Auto-detect current run: find the last line with Step X/Y
+    var currentTotal = null;
+    for (var i = lines.length - 1; i >= 0; i--) {
+        var m = lines[i].match(/Step\s+(\d+)\/(\d+)/);
+        if (m) { currentTotal = parseInt(m[2]); break; }
+    }
+    if (!currentTotal) currentTotal = 50000; // fallback
+    // Collect unique steps (dedup by step number)
+    var seenSteps = {};
+    for (var i = 0; i < lines.length; i++) {
+        var l = lines[i];
+        var m = l.match(/Step\s+(\d+)\/(\d+).*?loss=([\d.]+)/);
+        if (m) {
+            var total = parseInt(m[2]);
+            // Only show current run (same max_steps)
+            if (total !== currentTotal) continue;
+            var step = parseInt(m[1]);
+            // Deduplicate — keep the last entry for each step
+            var loss = parseFloat(m[3]);
+            seenSteps[step] = loss;
+            lastStep = step;
+            lastLoss = loss;
+            var speedM = l.match(/([\d.]+)\s+steps\/s/);
+            if (speedM) stepsPerSec = parseFloat(speedM[1]);
+        }
+        var em = l.match(/Eval:\s+([\d.]+)%\s+\(best:\s+([\d.]+)%/);
+        if (em) {
+            var acc = parseFloat(em[1]);
+            var best = parseFloat(em[2]);
+            if (lastStep > 0 && lastLoss !== null) {
+                lastAcc = acc;
+                bestAcc = best;
+                accs.push({step: lastStep, acc: acc});
+            }
+        }
+    }
+    // Build sorted arrays from deduped steps
+    var sortedSteps = Object.keys(seenSteps).map(function(s) { return parseInt(s); }).sort(function(a,b) { return a - b; });
+    for (var i = 0; i < sortedSteps.length; i++) {
+        steps.push(sortedSteps[i]);
+        losses.push(seenSteps[sortedSteps[i]]);
+    }
+    return {step: lastStep, loss: lastLoss, acc: lastAcc, best: bestAcc, speed: stepsPerSec,
+            steps: steps, losses: losses, accs: accs, total: currentTotal};
+}
+
+function pollTraining() {
+    fetch(API + '/training-progress')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            // Also read the raw log file to get scratchpad data
+            return fetch(API + '/api/exec', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({command: 'type "C:\\Users\\Admin\\tabula-rasa\\specialists\\math\\add\\training.log" 2>nul || type "C:\\Users\\Admin\\tabula-rasa\\training.log" 2>nul || echo EMPTY', timeout: 5})
+            }).then(function(r2) { return r2.json(); }).then(function(r2) {
+                return {progress: d, log: r2.output || ''};
+            });
+        })
+        .then(function(result) {
+            var log = result.log || '';
+            var info = parseScratchpadLog(log);
+
+            // Update stats
+            document.getElementById('sp-step').textContent = info.step || '-';
+            document.getElementById('sp-loss').textContent = info.loss !== null && info.loss !== undefined ? info.loss.toFixed(4) : '-';
+            document.getElementById('sp-acc').textContent = info.best !== null && info.best !== undefined ? info.best + '%' : '-';
+            document.getElementById('sp-speed').textContent = info.speed !== null ? info.speed.toFixed(1) : '-';
+
+            // Progress bar
+            var pct = info.total > 0 ? (info.step / info.total * 100) : 0;
+            document.getElementById('progress-bar').style.width = Math.min(pct, 100) + '%';
+            document.getElementById('progress-pct').textContent = Math.round(pct) + '%';
+
+            // ETA
+            if (info.speed && info.step > 0) {
+                var remaining = (info.total - info.step) / info.speed;
+                document.getElementById('eta-text').textContent = 'ETA: ' + fmtTime(Math.round(remaining));
+            } else {
+                document.getElementById('eta-text').textContent = 'ETA: warming up...';
+            }
+
+            // Draw chart
+            drawLossChart(info.steps, info.losses, info.accs);
+
+            // Update log display — dedup by step, only current run
+            var logLines = log.split('\n').filter(function(l) { return l.trim(); });
+            // Find current run total from last line
+            var curTotal = null;
+            for (var j = logLines.length - 1; j >= 0; j--) {
+                var tm = logLines[j].match(/Step\s+(\d+)\/(\d+)/);
+                if (tm) { curTotal = parseInt(tm[2]); break; }
+            }
+            var seenLog = {};
+            var displayLines = [];
+            for (var j = 0; j < logLines.length; j++) {
+                var lm = logLines[j].match(/Step\s+(\d+)\/(\d+)/);
+                if (lm) {
+                    if (parseInt(lm[2]) !== curTotal) continue; // wrong run
+                    var step = parseInt(lm[1]);
+                    if (seenLog[step]) continue; // duplicate step
+                    seenLog[step] = true;
+                }
+                displayLines.push(logLines[j]);
+            }
+            var html = displayLines.map(function(l) {
+                var cls = 's';
+                if (l.includes('Eval')) cls = 'e';
+                if (l.includes('Error') || l.includes('ERROR')) cls = 'r';
+                return '<div class="' + cls + '">' + l.trim() + '</div>';
+            });
+            if (html.length === 0) {
+                html = ['<div class="s">[INFO] Waiting for step 500...</div>'];
+            }
+            updateLog(html);
+
+            // Status dot
+            var running = result.progress && result.progress.running;
+            document.getElementById('train-dot').className = 'status-dot ' + (running ? 'running' : 'stopped');
+            document.getElementById('train-status').textContent = running ? 'Running' : 'Stopped';
+            document.getElementById('train-status').style.color = running ? '#22c55e' : '#ef4444';
+        })
+        .catch(function(e) {
+            document.getElementById('log-display').innerHTML = '<div class="r">[ERR] ' + e.message + '</div>';
+        });
+}
+
+function fetchSamples() {
+    var container = document.getElementById('samples-container');
+    container.innerHTML = '<div style="color:var(--muted);">Generating samples...</div>';
+
+    fetch(API + '/api/exec', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            command: 'cd C:\\Users\\Admin\\tabula-rasa && python3 -u scripts\\scratchpad_samples.py',
+            timeout: 30
+        })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        var output = d.output || '';
+        var lines = output.split('\n').filter(function(l) { return l.trim(); });
+        var html = '';
+        for (var i = 0; i < lines.length; i++) {
+            var l = lines[i];
+            if (l.startsWith('SAMPLE|')) {
+                var parts = l.split('|');
+                var expr = parts[1];
+                var out = parts[2];
+                var truth = parts[3];
+                var pred = parts[4];
+                var match = parts[5];
+                var cls = match === 'OK' ? 'correct' : 'wrong';
+                html += '<div class="parse-row">';
+                html += '<span class="label">' + expr + '</span>';
+                html += '<span class="raw">' + out + '</span>';
+                html += '<span class="arrow">&#x2192;</span>';
+                html += '<span class="parsed">' + pred + '</span>';
+                html += '<span class="' + cls + '">' + (match === 'OK' ? '\u2713' : '\u2717') + '</span>';
+                html += '</div>';
+            } else if (l.includes('CHECKPOINT_LOADED')) {
+                html += '<div style="color:var(--green);font-size:0.8rem;padding:4px 0;">\u2713 Checkpoint loaded</div>';
+            } else if (l.includes('NO_CHECKPOINT')) {
+                html += '<div style="color:var(--muted);font-size:0.8rem;padding:4px 0;">No checkpoint yet (first save at step 2000)</div>';
+            }
+        }
+        if (!html) html = '<div style="color:var(--muted);">No sample data.</div>';
+        container.innerHTML = html;
+    }).catch(function(e) {
+        container.innerHTML = '<div style="color:var(--red);">Error: ' + e.message + '</div>';
+    });
+}
+
+function fetchHealthCheck() {
+    var container = document.getElementById('health-container');
+    container.innerHTML = '<div style="color:var(--muted);">Checking...</div>';
+
+    fetch(API + '/api/exec', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            command: 'cd C:\\Users\\Admin\\tabula-rasa && python3 -u scripts\\check_training.py',
+            timeout: 15
+        })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        var output = d.output || '';
+        var lines = output.split('\n').filter(function(l) { return l.trim(); });
+        var html = '';
+        var milestoneHtml = '';
+        var inMilestones = false;
+        for (var i = 0; i < lines.length; i++) {
+            var l = lines[i];
+            if (l.startsWith('Expected milestones')) {
+                inMilestones = true;
+            }
+            if (inMilestones) {
+                milestoneHtml += l + '\n';
+            } else {
+                // Color the status line
+                if (l.includes('[OK]')) {
+                    html += '<div style="color:var(--green);font-size:0.85rem;padding:4px 0;">' + l + '</div>';
+                } else if (l.includes('[!]') || l.includes('[X]')) {
+                    html += '<div style="color:var(--orange);font-size:0.85rem;padding:4px 0;">' + l + '</div>';
+                } else if (l.includes('[...]')) {
+                    html += '<div style="color:var(--muted);font-size:0.85rem;padding:4px 0;">' + l + '</div>';
+                } else if (l.startsWith('  [')) {
+                    html += '<div style="font-family:monospace;font-size:0.75rem;color:var(--muted);padding:2px 0 2px 16px;">' + l + '</div>';
+                } else {
+                    html += '<div style="font-size:0.85rem;padding:2px 0;">' + l + '</div>';
+                }
+            }
+        }
+        container.innerHTML = html || '<div style="color:var(--muted);">No data.</div>';
+        if (milestoneHtml) {
+            document.getElementById('milestone-pre').textContent = milestoneHtml;
+            document.getElementById('milestone-table').style.display = 'block';
+        }
+    }).catch(function(e) {
+        container.innerHTML = '<div style="color:var(--red);">Error: ' + e.message + '</div>';
+    });
+}
+
+// Poll on load and every 10 seconds
+pollTraining();
+setInterval(pollTraining, 10000);
+
+// Also fetch samples on load
+setTimeout(fetchSamples, 2000);
+// Run health check every 60 seconds
+setTimeout(fetchHealthCheck, 3000);
+setInterval(fetchHealthCheck, 60000);</script>
+</body>
+</html>

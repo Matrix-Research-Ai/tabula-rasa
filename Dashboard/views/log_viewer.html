@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training Log</title>
+<style>
+:root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'SF Mono','Fira Code','Consolas',monospace;background:var(--bg);color:var(--text);padding:16px 20px}
+h1{font-size:18px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+h1 span{color:var(--muted);font-weight:400;font-size:13px}
+.controls{display:flex;gap:10px;align-items:center;margin:10px 0 14px}
+.controls button{padding:5px 14px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);cursor:pointer;font-size:12px}
+.controls button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.controls .info{font-size:11px;color:var(--muted)}
+#log{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow:auto;max-height:85vh;min-height:200px;font-family:inherit}
+#log .s{color:var(--muted)}#log .hl{color:var(--accent)}#log .ok{color:var(--green)}#log .no{color:var(--red)}#log .w{color:var(--orange)}
+</style>
+</head>
+<body>
+<h1>&#x1F4CB; Training Log <span id="info">loading...</span></h1>
+<div class="controls">
+<button onclick="refresh()">&#x21BB; Refresh</button>
+<button onclick="clearLog()">&#x2716; Clear</button>
+<label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="auto" checked onchange="toggleAuto()"> Auto-refresh (5s)</label>
+<span class="info" id="status"></span>
+</div>
+<div id="log"><span class="s">Waiting for training.log...</span></div>
+
+<script>
+const API = 'http://localhost:8000';
+let timer = null;
+
+async function refresh() {
+  const el = document.getElementById('log');
+  const info = document.getElementById('info');
+  const status = document.getElementById('status');
+  try {
+    const r = await fetch(API + '/training-progress');
+    const d = await r.json();
+    info.textContent = d.running
+      ? 'Step ' + d.step + '/' + d.max_steps + ' | loss=' + (d.loss || '-')
+      : (d.step > 0 ? 'Training complete' : 'No training data');
+  } catch(e) {
+    info.textContent = 'offline';
+  }
+  try {
+    const r = await fetch('/training-log?' + Date.now());
+    if (!r.ok) throw new Error('Not found');
+    const text = await r.text();
+    const lines = text.split('\n').filter(l => l.trim());
+    status.textContent = lines.length + ' lines';
+    el.innerHTML = lines.map(l => esc(l)).join('\n');
+  } catch(e) {
+    const r2 = await fetch(API + '/training-progress');
+    const d2 = await r2.json();
+    if (d2.loss_series && d2.loss_series.length) {
+      const lines = d2.loss_series.map(s => 'Step ' + s.step + ' | loss=' + s.loss.toFixed(4));
+      el.innerHTML = lines.join('\n') + '\n<span class="s">(from API — log file not available)</span>';
+    } else {
+      el.innerHTML = '<span class="s">No training log found. Start training first.</span>';
+    }
+  }
+}
+
+function toggleAuto() {
+  if (document.getElementById('auto').checked) {
+    timer = setInterval(refresh, 5000);
+  } else {
+    clearInterval(timer);
+  }
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '<span class="s">Cleared</span>';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Init
+refresh();
+toggleAuto();
+</script>
+</body>
+</html>

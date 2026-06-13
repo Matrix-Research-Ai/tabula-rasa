@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Chat — Tabula Rasa</title>
+    <style>
+        :root { --bg: #111827; --panel: #1f2937; --border: #374151; --text: #f3f4f6; --accent: #3b82f6; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; padding: 20px 24px; max-width: 800px; margin: 0 auto; }
+        .hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+        .hdr .l { display: flex; align-items: center; gap: 10px; }
+        .hdr .l .ic { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 1rem; }
+        .hdr .l h1 { font-size: 1.1rem; }
+        .hdr .l small { font-size: 0.7rem; color: #9ca3af; }
+        .hdr .r { font-size: 0.75rem; color: #9ca3af; text-align: right; min-width: 120px; }
+        .hdr .r strong { color: white; }
+        .hdr .r .corr-num { color: #facc15; font-weight: bold; }
+        .chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; padding-right: 6px; }
+        .msg { display: flex; gap: 10px; max-width: 85%; }
+        .msg.ai { align-self: flex-start; }
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg .av { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
+        .msg.user .av { background: #4b5563; }
+        .msg .bub { background: var(--panel); border: 1px solid var(--border); padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.5; }
+        .msg.user .bub { background: var(--accent); border-color: var(--accent); color: white; }
+        .msg .meta { font-size: 0.7rem; color: #6b7280; margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .msg .meta .tag { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
+        .msg .meta .tag.skill { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .msg .meta .tag.correct { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .msg .meta .tag.wrong { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .msg .meta .tag.scratchpad { background: rgba(168,85,247,0.15); color: #a855f7; }
+        .msg .meta .tag.needs { background: rgba(250,204,21,0.15); color: #facc15; }
+        .msg .meta .tag.taught { background: rgba(59,130,246,0.15); color: #3b82f6; }
+        .unknown-box { background: rgba(250,204,21,0.08); border-left: 3px solid #facc15; padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 4px 0; font-size: 0.85rem; color: #d1d5db; }
+        .chips { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; flex-wrap: wrap; }
+        .chips button { background: var(--panel); border: 1px solid var(--border); color: #d1d5db; padding: 5px 12px; border-radius: 16px; font-size: 0.8rem; cursor: pointer; white-space: nowrap; }
+        .chips button:hover { border-color: var(--accent); color: white; }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        .input-row input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: white; padding: 10px 14px; border-radius: 8px; font-size: 0.95rem; outline: none; }
+        .input-row input:focus { border-color: var(--accent); }
+        .input-row button { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .input-row button:hover { background: #2563eb; }
+        .input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .at { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8rem; color: #9ca3af; user-select: none; flex-shrink: 0; }
+        .at .tk { width: 36px; height: 20px; border-radius: 10px; background: #374151; position: relative; transition: background .2s; }
+        .at .tk.on { background: var(--accent); }
+        .at .tk .kb { width: 16px; height: 16px; border-radius: 50%; background: white; position: absolute; top: 2px; left: 2px; transition: left .2s; }
+        .at .tk.on .kb { left: 18px; }
+        .status { font-size: 0.75rem; color: #6b7280; min-height: 18px; margin-top: 6px; }
+        #welcome { display: block; }
+        .notif { position: fixed; top: 16px; right: 16px; background: var(--panel); border: 1px solid var(--border); padding: 10px 16px; border-radius: 8px; font-size: 0.8rem; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+        .notif.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="notif" id="notif"></div>
+    <div class="hdr">
+        <div class="l"><div class="ic">&#x1F9E0;</div><div><h1>Tabula Rasa <small>V1.3</small></h1><small>Blank slate AI — learns skills one at a time</small></div></div>
+        <div class="r">
+            Known: <strong id="known-c">0</strong><br>
+            Learning: <strong id="queued-c">0</strong><br>
+            Corrections: <span class="corr-num" id="corr-c">0</span>
+        </div>
+    </div>
+
+    <div class="chat" id="chat">
+        <div id="welcome">
+            <div class="msg ai">
+                <div class="av">&#x1F9E0;</div>
+                <div class="bub">
+                    <strong>I start as a blank slate, knowing nothing.</strong><br><br>
+                    Every capability — every concept, every operation, every word — must be learned through experience.<br><br>
+                    Ask me a math problem, and I'll try my best. If I don't know it yet, I'll tell you honestly.
+                    <div class="meta">
+                        <span class="tag">&#x1F9ED; Router: generalist</span>
+                        <span style="color:#6b7280;"><em>"I don't know about that yet."</em></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chips">
+        <button onclick="ask('12+34=')">12+34=</button>
+        <button onclick="ask('5+7=')">5+7=</button>
+        <button onclick="ask('99+1=')">99+1=</button>
+        <button onclick="ask('hello')">Hello</button>
+        <button onclick="ask('What can you do?')">What can you do?</button>
+    </div>
+
+    <div class="input-row">
+        <div class="at" onclick="toggleAT()"><div class="tk" id="atk"><div class="kb"></div></div> Auto-Teach</div>
+        <input type="text" id="inp" placeholder="Ask a question or give a math problem..." onkeydown="if(event.key==='Enter')sendMsg()">
+        <button id="ask-btn" onclick="sendMsg()">Ask</button>
+    </div>
+    <div class="status" id="status"></div>
+
+    <script>
+    var API2 = 'http://localhost:8002';
+    var API1 = 'http://localhost:8000';
+    var autoTeach = false, busy = false, totalCorrections = 0;
+
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function notify(msg, color) {
+        var n = $('notif');
+        n.textContent = msg;
+        n.style.borderColor = color || '#374151';
+        n.className = 'notif show';
+        setTimeout(function() { n.className = 'notif'; }, 2000);
+    }
+
+    function addBubble(role, content, meta) {
+        var w = $('welcome');
+        if (w) w.style.display = 'none';
+        var chat = $('chat');
+        if (role === 'user') {
+            chat.insertAdjacentHTML('beforeend', '<div class="msg user"><div class="av">&#x1F464;</div><div class="bub">' + content + '</div></div>');
+        } else {
+            chat.insertAdjacentHTML('beforeend', '<div class="msg ai"><div class="av">&#x1F9E0;</div><div class="bub">' + content + (meta ? '<div class="meta">' + meta + '</div>' : '') + '</div></div>');
+        }
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Detect if prompt is a math expression
+    function isMath(prompt) {
+        return /^\d+\s*[+\-*/]\s*\d+\s*=\s*$|^\d+\s*[+\-*/]\s*\d+$/.test(prompt.trim());
+    }
+
+    // Math queries go directly to the math server (port 8000) — the router's generalist gives wrong answers
+    async function askMath(prompt) {
+        try {
+            var r = await fetch(API1 + '/generate', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt, temperature: 0.0, top_k: 3 })
+            });
+            return await r.json();
+        } catch(e) {
+            return {error: e.message};
+        }
+    }
+
+    // Parse scratchpad format for display
+    function parseScratchpad(raw) {
+        // raw is the answer part (after =) in carry-digit format
+        if (!raw || raw.length < 2) return raw;
+        var digits = '', carries = '';
+        for (var i = 0; i < raw.length; i += 2) {
+            carries += raw[i];
+            digits += raw[i + 1] || '';
+        }
+        var normal = digits.split('').reverse().join('');
+        if (carries && carries[carries.length - 1] === '1') normal = '1' + normal;
+        return normal.replace(/^0+/, '') || '0';
+    }
+
+    async function sendCorrect(prompt, correctAnswer) {
+        try {
+            var r = await fetch(API1 + '/correct', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt, answer: correctAnswer })
+            });
+            var d = await r.json();
+            if (d.status === 'ok') {
+                totalCorrections++;
+                $('corr-c').textContent = totalCorrections;
+                notify('Learned: ' + prompt + correctAnswer, '#22c55e');
+            }
+        } catch(e) {}
+    }
+
+    async function ask(prompt) {
+        if (busy) return;
+        if (!prompt || !prompt.trim()) return;
+        busy = true;
+        $('ask-btn').disabled = true;
+
+        addBubble('user', esc(prompt));
+        $('inp').value = '';
+        $('status').textContent = 'Thinking...';
+        var cid = 'r' + Date.now();
+        addBubble('ai', '<span id="' + cid + '" style="color: #6b7280;">...</span>', '<span style="color:#6b7280;">computing...</span>');
+
+        // Math queries go directly to the math specialist (port 8000), not the router
+        if (isMath(prompt)) {
+            try {
+                var d = await askMath(prompt);
+                var el = $(cid);
+                if (!el) { busy = false; $('ask-btn').disabled = false; return; }
+
+                var show = '';
+                if (d.display) {
+                    show = d.display;
+                } else {
+                    var raw = d.result || '';
+                    if (raw.includes('=')) raw = raw.split('=').pop().replace(/<[^>]+>/g, '').trim();
+                    show = (raw && raw.length >= 2) ? parseScratchpad(raw) : raw;
+                }
+                el.textContent = show || '(no answer)';
+                el.style.cssText = 'color:white;font-size:1.1rem;font-weight:bold';
+
+                var meta = '<span>' + (d.time_ms || '?') + 'ms</span><span class="tag skill">math specialist</span>';
+                if (d.display && d.result) {
+                    var rawPart = d.result.split('=').pop().replace(/<[^>]+>/g, '').trim();
+                    if (rawPart && d.display !== rawPart) {
+                        meta += '<span class="tag scratchpad">scratchpad</span>';
+                    }
+                }
+                el.nextElementSibling.innerHTML = meta;
+                $('status').textContent = 'Answered.';
+
+                // Auto-Teach: if answer is wrong, correct it
+                if (autoTeach) {
+                    var expr = prompt.replace(/=\s*$/, '').trim();
+                    try {
+                        var correctAns = Function('"use strict"; return (' + expr + ')')();
+                        var userAns = parseInt(show);
+                        if (!isNaN(correctAns) && !isNaN(userAns) && correctAns !== userAns) {
+                            $('status').textContent = 'Wrong. Auto-teaching correct answer...';
+                            await sendCorrect(expr, String(correctAns));
+                        }
+                    } catch(calcErr) {}
+                }
+            } catch(e2) {
+                var el = $(cid);
+                if (el) {
+                    el.innerHTML = '<span style="color:#ef4444;">I don&#39;t know about that yet.</span><div class="unknown-box">No specialist is trained for this topic. I would need a new skill to answer.</div>';
+                    el.style.cssText = '';
+                }
+                $('status').textContent = 'Server offline.';
+            }
+            busy = false; $('ask-btn').disabled = false; return;
+        }
+
+        // Non-math queries: try AI consciousness (port 8002) first
+        try {
+            var r = await fetch(API2 + '/ask', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: prompt, temperature: 0.0, top_k: 3, skill: '' })
+            });
+            var d = await r.json();
+            var el = $(cid);
+            if (!el) { busy = false; $('ask-btn').disabled = false; return; }
+
+            if (d.knows && d.answer) {
+                var ans = d.answer.replace(/<[^>]+>/g, '').trim();
+                if (ans.includes('=')) ans = ans.split('=').pop().trim();
+                el.textContent = ans;
+                el.style.cssText = 'color:white;font-size:1.1rem;font-weight:bold';
+                var meta = '';
+                if (d.skill) meta += '<span class="tag skill">&#x1F9ED; ' + esc(d.skill) + '</span>';
+                if (d.confidence !== null && d.confidence !== undefined) {
+                    var p = d.confidence, cls = p >= 80 ? 'correct' : p >= 50 ? 'tag' : 'wrong';
+                    var col = p >= 80 ? '#22c55e' : p >= 50 ? '#facc15' : '#ef4444';
+                    meta += '<span style="color:' + col + ';">&#x' + (p >= 80 ? '2705' : '26A0') + '; ' + p + '% confident</span>';
+                }
+                meta += '<span>' + (d.time_ms || '?') + 'ms</span>';
+                el.nextElementSibling.innerHTML = meta;
+                $('status').textContent = d.is_confident ? 'Answered.' : 'Answered (low confidence).';
+            } else {
+                // Honest ignorance: "I don't know about that yet."
+                el.innerHTML = '';
+                el.style.cssText = '';
+                var html = '<span style="color:#facc15;font-weight:bold;">I don\'t know about that yet.</span>';
+                if (d.analysis || d.suggested_skills) {
+                    html += '<div class="unknown-box">';
+                    if (d.suggested_skills && d.suggested_skills.length) {
+                        html += 'To answer this I would need: <strong>' + esc(d.suggested_skills.join(', ')) + '</strong>.';
+                    } else if (d.analysis) {
+                        html += esc(d.analysis);
+                    }
+                    html += '</div>';
+                }
+                el.insertAdjacentHTML('afterbegin', html);
+                var meta = '';
+                if (d.suggested_skills && d.suggested_skills.length) {
+                    meta += '<span class="tag needs">Needs: ' + esc(d.suggested_skills.join(', ')) + '</span>';
+                }
+                el.nextElementSibling.innerHTML = meta;
+                $('status').textContent = 'Unknown.';
+            }
+        } catch(e) {
+            // Fallback to math server (port 8000)
+            try {
+                var r = await fetch(API1 + '/generate', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt, temperature: 0.0, top_k: 3 })
+                });
+                var d = await r.json();
+                var el = $(cid);
+                if (!el) { busy = false; $('ask-btn').disabled = false; return; }
+
+                // Use display field if available, otherwise parse scratchpad
+                var show = '';
+                if (d.display) {
+                    show = d.display;
+                } else {
+                    var raw = d.result || '';
+                    if (raw.includes('=')) raw = raw.split('=').pop().replace(/<[^>]+>/g, '').trim();
+                    show = (raw && raw.length >= 2) ? parseScratchpad(raw) : raw;
+                }
+                el.textContent = show || '(no answer)';
+                el.style.cssText = 'color:white;font-size:1.1rem;font-weight:bold';
+
+                var meta = '<span>' + (d.time_ms || '?') + 'ms</span><span class="tag skill">math specialist</span>';
+                if (d.display && d.result) {
+                    var rawPart = d.result.split('=').pop().replace(/<[^>]+>/g, '').trim();
+                    if (rawPart && d.display !== rawPart) {
+                        meta += '<span class="tag scratchpad">scratchpad</span>';
+                    }
+                }
+                el.nextElementSibling.innerHTML = meta;
+                $('status').textContent = 'Answered.';
+
+                // Auto-Teach: if answer is wrong, correct it
+                if (autoTeach && isMath(prompt)) {
+                    var expr = prompt.replace(/=\s*$/, '').trim();
+                    try {
+                        var correctAns = Function('"use strict"; return (' + expr + ')')();
+                        var userAns = parseInt(show);
+                        if (!isNaN(correctAns) && !isNaN(userAns) && correctAns !== userAns) {
+                            $('status').textContent = 'Wrong. Auto-teaching correct answer...';
+                            await sendCorrect(expr, String(correctAns));
+                        }
+                    } catch(calcErr) {
+                        // not a computable expression
+                    }
+                }
+            } catch(e2) {
+                var el = $(cid);
+                if (el) {
+                    el.innerHTML = '<span style="color:#ef4444;">I don\'t know about that yet.</span><div class="unknown-box">No specialist is trained for this topic. I would need a new skill to answer.</div>';
+                    el.style.cssText = '';
+                }
+                $('status').textContent = 'Server offline.';
+            }
+        }
+
+        busy = false;
+        $('ask-btn').disabled = false;
+    }
+
+    function sendMsg() {
+        var inp = $('inp');
+        if (inp.value.trim()) ask(inp.value);
+        inp.value = '';
+    }
+
+    function toggleAT() {
+        autoTeach = !autoTeach;
+        $('atk').className = 'tk' + (autoTeach ? ' on' : '');
+        notify(autoTeach ? 'Auto-Teach ON — wrong answers auto-corrected' : 'Auto-Teach OFF', autoTeach ? '#3b82f6' : '#6b7280');
+    }
+
+    async function pollSkills() {
+        try {
+            var r = await fetch(API2 + '/skills');
+            var d = await r.json();
+            var skills = d.skills || [];
+            var known = skills.filter(function(s) { return s.status === 'ready'; });
+            var queued = skills.filter(function(s) { return s.status === 'queued' || s.status === 'training'; });
+            $('known-c').textContent = known.length;
+            $('queued-c').textContent = queued.length;
+        } catch(e) {}
+    }
+    pollSkills();
+    setInterval(pollSkills, 15000);
+    </script>
+</body>
+</html>

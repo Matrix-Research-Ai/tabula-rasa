@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabula Rasa — GPU Training</title>
+<script src="../core/dashboard.js"></script>
+<style>
+:root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);padding:24px 32px;max-width:900px;margin:0 auto}
+h2{font-size:1.4rem;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:18px}
+.card h3{font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.file-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s}
+.file-item:hover{border-color:var(--accent)}
+.file-item .cb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.file-item .nm{font-size:0.85rem;font-weight:600}
+.file-item .sz{font-size:0.7rem;color:var(--muted);margin-left:auto}
+.steps{counter-reset:step}
+.step{counter-increment:step;padding:12px 0;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:flex-start}
+.step:last-child{border:none}
+.step .num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step .body{flex:1}
+.step .body .st{font-weight:600;font-size:14px;margin-bottom:3px}
+.step .body .sd{font-size:12px;color:var(--muted);line-height:1.5}
+.step .body code{font-size:11px;background:var(--bg);padding:2px 6px;border-radius:4px;color:var(--accent)}
+.cmd-block{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-family:'SF Mono','Fira Code',monospace;font-size:12px;line-height:1.7;overflow-x:auto;color:var(--text);margin-top:8px}
+.cmd-block .cm{color:var(--muted)}
+.cmd-block .hl{color:var(--accent)}
+.cmd-block .ok{color:var(--green)}
+.cmd-block .arrow{color:var(--orange)}
+.cmd-block .err{color:var(--red)}
+.btn{padding:10px 22px;border-radius:8px;border:none;font-weight:600;cursor:pointer;font-size:0.9rem}
+.btn-p{background:var(--accent);color:white}
+.btn-g{background:var(--green);color:white}
+.btn-s{background:#374151;color:#d1d5db}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn:hover:not(:disabled){opacity:0.9}
+.status-msg{font-size:0.85rem;min-height:20px;margin-top:8px}
+#build-output{background:#000;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:0.8rem;max-height:200px;overflow-y:auto;color:#d1d5db;line-height:1.6;margin-top:8px;display:none}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td.gpu{color:var(--green);font-weight:600}
+td.cpu{color:var(--orange);font-weight:600}
+.timeline{display:flex;gap:4px;margin:14px 0}
+.timeline .seg{flex:1;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600}
+.timeline .seg.gen{background:var(--accent)}
+.timeline .seg.add{background:#2ea043}
+.timeline .seg.sub{background:#d29922}
+.timeline .seg.mul{background:#bd2c00}
+.timeline .seg.div{background:#8250df}
+.cost-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+.cb{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.cb .cv{font-size:22px;font-weight:700}
+.cb .cv.g{color:var(--green)}.cb .cv.o{color:var(--orange)}.cb .cv.b{color:var(--accent)}
+.cb .cl{font-size:11px;color:var(--muted);margin-top:2px}
+.progress-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:8px}
+.progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s;width:0%}
+</style>
+</head>
+<body>
+<h2>&#x26A1; GPU Training Pipeline</h2>
+
+<!-- Package Builder -->
+<div class="card" style="border-color:var(--accent)">
+<h3 style="color:var(--accent)">&#x1F4E6; Build Deployment Package</h3>
+<p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Select files to include in the GPU training zip, then build it. The package is ready to upload to RunPod, Vast.ai, or any cloud GPU.</p>
+
+<div class="files" id="file-list"></div>
+
+<div class="progress-bar"><div class="progress-fill" id="build-progress"></div></div>
+<div id="build-output"></div>
+<div class="status-msg" id="build-status"></div>
+
+<div style="display:flex;gap:10px;margin-top:12px">
+<button class="btn btn-p" id="build-btn" onclick="buildPackage()">&#x1F4E6; Build Package</button>
+<button class="btn btn-s" onclick="selectAllFiles(true)">Select All</button>
+<button class="btn btn-s" onclick="selectAllFiles(false)">Deselect All</button>
+<a id="download-link" style="display:none" class="btn btn-g" download>&#x2B07; Download tabula-rasa-gpu.tar.gz</a>
+</div>
+</div>
+
+<!-- How To -->
+<div class="card">
+<h3>&#x1F4CB; Quick Start</h3>
+<div class="steps">
+<div class="step">
+<div class="num">1</div>
+<div class="body">
+<div class="st">Select files &amp; build</div>
+<div class="sd">Check the files above and click <strong>Build Package</strong>. It creates <code>tabula-rasa-gpu.tar.gz</code> with all training scripts and configs.</div>
+</div>
+</div>
+<div class="step">
+<div class="num">2</div>
+<div class="body">
+<div class="st">Upload to GPU cloud</div>
+<div class="sd">Rent a GPU pod (RunPod, Vast.ai), open the web terminal, and upload the zip:</div>
+<div class="cmd-block"><span class="cm"># Upload via RunPod file manager or SCP</span><br/>
+<span class="arrow">$</span> tar -xzf tabula-rasa-gpu.tar.gz<br/>
+<span class="arrow">$</span> cd tabula-rasa-gpu</div>
+</div>
+</div>
+<div class="step">
+<div class="num">3</div>
+<div class="body">
+<div class="st">Run training</div>
+<div class="sd">One command installs deps, prepares data, and trains all specialists on GPU:</div>
+<div class="cmd-block"><span class="arrow">$</span> bash setup_gpu.sh<br/>
+<span class="cm"># Or step by step:</span><br/>
+<span class="arrow">$</span> pip install -r requirements.txt<br/>
+<span class="arrow">$</span> python3 train_gpu.py</div>
+</div>
+</div>
+<div class="step">
+<div class="num">4</div>
+<div class="body">
+<div class="st">Download trained zips</div>
+<div class="sd">Portable specialist zips land in <code>/output/</code>. Download via file manager and copy to your local <code>specialists/math/&lt;op&gt;/</code></div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Quick CPU Test -->
+<div class="card" style="border-color:var(--green)">
+<h3 style="color:var(--green)">&#x1F9EA; Quick CPU Test (validate before GPU)</h3>
+<p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Run a small training on your local CPU to verify the specialist works before spending money on GPU cloud.</p>
+<div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
+  <div>
+    <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:4px">Specialist</label>
+    <select id="test-spec" style="background:#0f172a;border:1px solid var(--border);color:white;padding:8px 10px;border-radius:6px;font-size:0.9rem;min-width:140px">
+      <option value="add">Addition</option>
+      <option value="sub">Subtraction</option>
+      <option value="mul">Multiplication</option>
+      <option value="div">Division</option>
+    </select>
+    <div style="font-size:0.7rem;color:var(--muted);margin-top:2px">Generalist: use Training Monitor page or terminal: python3 train.py</div>
+  </div>
+  <div>
+    <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:4px">Test Steps</label>
+    <input type="number" id="test-steps" value="200" min="50" max="2000" step="50" style="background:#0f172a;border:1px solid var(--border);color:white;padding:8px 10px;border-radius:6px;font-size:0.9rem;width:100px">
+  </div>
+  <div>
+    <button class="btn btn-g" id="test-btn" onclick="runCPUTest()">&#x25B6; Run Test</button>
+  </div>
+</div>
+<div class="progress-bar" style="margin-top:10px"><div class="progress-fill" id="test-progress" style="width:0%"></div></div>
+<div id="test-output" style="background:#000;border:1px solid var(--border);border-radius:6px;padding:12px;font-family:monospace;font-size:0.8rem;max-height:180px;overflow-y:auto;color:#d1d5db;line-height:1.6;margin-top:8px;display:none"></div>
+<div class="status-msg" id="test-status"></div>
+</div>
+
+<!-- Specialist Selection -->
+<div class="card" style="border-color:var(--accent)">
+<h3 style="color:var(--accent)">&#x1F916; Select Specialists to Train</h3>
+<p style="font-size:0.85rem;color:var(--muted);margin-bottom:12px">Choose which models to train on the GPU. The command will be generated automatically.</p>
+<div id="spec-select-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+  <label class="spec-opt" data-spec="generalist" data-steps="20000" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:2px solid var(--accent);border-radius:8px;cursor:pointer">
+    <input type="checkbox" checked onchange="updateSpecs()" style="width:16px;height:16px;accent-color:var(--accent)">
+    <div><div style="font-weight:600;font-size:0.9rem">Generalist</div><div style="font-size:0.7rem;color:var(--muted)">20K steps &middot; ~3 min GPU</div></div>
+  </label>
+  <label class="spec-opt" data-spec="add" data-steps="10000" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:2px solid #2ea043;border-radius:8px;cursor:pointer">
+    <input type="checkbox" checked onchange="updateSpecs()" style="width:16px;height:16px;accent-color:#2ea043">
+    <div><div style="font-weight:600;font-size:0.9rem">Addition</div><div style="font-size:0.7rem;color:var(--muted)">10K steps &middot; ~1.5 min GPU</div></div>
+  </label>
+  <label class="spec-opt" data-spec="subtraction" data-steps="10000" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:2px solid #d29922;border-radius:8px;cursor:pointer">
+    <input type="checkbox" checked onchange="updateSpecs()" style="width:16px;height:16px;accent-color:#d29922">
+    <div><div style="font-weight:600;font-size:0.9rem">Subtraction</div><div style="font-size:0.7rem;color:var(--muted)">10K steps &middot; ~1.5 min GPU</div></div>
+  </label>
+  <label class="spec-opt" data-spec="multiplication" data-steps="10000" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:2px solid #bd2c00;border-radius:8px;cursor:pointer">
+    <input type="checkbox" checked onchange="updateSpecs()" style="width:16px;height:16px;accent-color:#bd2c00">
+    <div><div style="font-weight:600;font-size:0.9rem">Multiplication</div><div style="font-size:0.7rem;color:var(--muted)">10K steps &middot; ~1.5 min GPU</div></div>
+  </label>
+  <label class="spec-opt" data-spec="division" data-steps="10000" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:2px solid #8250df;border-radius:8px;cursor:pointer">
+    <input type="checkbox" checked onchange="updateSpecs()" style="width:16px;height:16px;accent-color:#8250df">
+    <div><div style="font-weight:600;font-size:0.9rem">Division</div><div style="font-size:0.7rem;color:var(--muted)">10K steps &middot; ~1.5 min GPU</div></div>
+  </label>
+</div>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <div style="font-size:0.85rem;color:var(--muted)">Selected: <strong id="spec-count" style="color:white">5</strong> models &middot; <strong id="spec-total-steps" style="color:white">60,000</strong> total steps &middot; ~<strong id="spec-est-time" style="color:var(--green)">9 min</strong> on RTX 4080</div>
+  <div style="font-size:0.8rem">
+    <label style="color:var(--muted);cursor:pointer"><input type="checkbox" id="spec-reversed" checked> Reversed Add/Sub</label>
+    <label style="color:var(--muted);cursor:pointer;margin-left:10px"><input type="checkbox" id="spec-loss-mask" checked> Loss Masking</label>
+  </div>
+</div>
+<div class="cmd-block" style="margin-top:12px;font-size:0.8rem">
+  <span class="cm"># Generated command (run on GPU server):</span><br>
+  <span class="arrow" id="gen-cmd">$ python3 train_gpu.py --specialists generalist addition subtraction multiplication division --steps 60000 --batch 512 --reversed --loss-mask</span>
+</div>
+</div>
+
+<!-- Provider Comparison -->
+<div class="card">
+<h3>&#x2601;&#xFE0F; Where to Rent</h3>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+<div style="font-weight:600;font-size:14px">RunPod</div>
+<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">RTX 4080 ~$0.30/hr &bull; 4090 ~$0.45/hr</div>
+<div style="font-size:11px;color:var(--muted);line-height:1.6">1-click PyTorch template<br/>Web terminal + file manager<br/>Pay per second</div>
+</div>
+<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+<div style="font-weight:600;font-size:14px">Vast.ai</div>
+<div style="font-size:12px;color:var(--muted);margin:4px 0 8px">RTX 4080 ~$0.20/hr &bull; 4090 ~$0.35/hr</div>
+<div style="font-size:11px;color:var(--muted);line-height:1.6">Auction pricing<br/>SSH + web UI<br/>Wider selection</div>
+</div>
+</div>
+</div>
+
+<!-- Cost Estimate -->
+<div class="card">
+<h3>&#36; Cost Estimate</h3>
+<div class="cost-grid">
+<div class="cb"><div class="cv g">~$0.05</div><div class="cl">Full run on<br/>RTX 4080</div></div>
+<div class="cb"><div class="cv o">~$0.30</div><div class="cl">1 hour rental<br/>plenty of buffer</div></div>
+<div class="cb"><div class="cv b">~100x</div><div class="cl">Speedup vs<br/>4-core CPU</div></div>
+</div>
+</div>
+
+<!-- Timeline -->
+<div class="card">
+<h3>&#x23F1;&#xFE0F; Timeline (RTX 4080)</h3>
+<div class="timeline">
+<div class="seg gen" style="flex:3">Generalist 20K</div>
+<div class="seg add" style="flex:1.5">Add 10K</div>
+<div class="seg sub" style="flex:1.5">Sub 10K</div>
+<div class="seg mul" style="flex:1.5">Mul 10K</div>
+<div class="seg div" style="flex:1.5">Div 10K</div>
+</div>
+<table>
+<tr><th>Model</th><th>Steps</th><th>CPU (4-core)</th><th>RTX 4080</th><th>Speedup</th></tr>
+<tr><td>Generalist</td><td>20,000</td><td class="cpu">~13.9 hr</td><td class="gpu">~3 min</td><td>~280x</td></tr>
+<tr><td>Add Specialist</td><td>10,000</td><td class="cpu">~7.0 hr</td><td class="gpu">~1.5 min</td><td>~280x</td></tr>
+<tr><td>Sub Specialist</td><td>10,000</td><td class="cpu">~7.0 hr</td><td class="gpu">~1.5 min</td><td>~280x</td></tr>
+<tr><td>Mul Specialist</td><td>10,000</td><td class="cpu">~7.0 hr</td><td class="gpu">~1.5 min</td><td>~280x</td></tr>
+<tr><td>Div Specialist</td><td>10,000</td><td class="cpu">~7.0 hr</td><td class="gpu">~1.5 min</td><td>~280x</td></tr>
+<tr style="border-top:2px solid var(--accent)"><td><strong>Total</strong></td><td><strong>60,000</strong></td><td class="cpu"><strong>~42 hr</strong></td><td class="gpu"><strong>~9 min</strong></td><td><strong>~280x</strong></td></tr>
+</table>
+</div>
+
+<script>
+var API = 'http://localhost:8000';
+
+async function runCPUTest() {
+    var btn = document.getElementById('test-btn');
+    var status = document.getElementById('test-status');
+    var output = document.getElementById('test-output');
+    var progress = document.getElementById('test-progress');
+    var spec = document.getElementById('test-spec').value;
+    var steps = parseInt(document.getElementById('test-steps').value) || 200;
+    btn.disabled = true;
+    status.innerHTML = '&#x1F504; Testing ' + spec + ' for ' + steps + ' steps...';
+    status.style.color = 'var(--accent)';
+    output.style.display = 'block';
+    output.innerHTML = '';
+    progress.style.width = '0%';
+    function append(t) { output.innerHTML += t + '\n'; output.scrollTop = output.scrollHeight; }
+    append('[INFO] Starting test: specialist=' + spec + ' steps=' + steps);
+    progress.style.width = '10%';
+    try {
+        var r = await fetch(API + '/api/exec', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ command: 'cd C:/Users/Admin/tabula-rasa && python3 train_specialist.py ' + spec + ' --steps ' + steps + ' --batch 32 2>&1', timeout: 120 })
+        });
+        var d = await r.json();
+        progress.style.width = '100%';
+        append('[EXIT] code: ' + (d.exit_code !== undefined ? d.exit_code : '?'));
+        append('[OUTPUT] ' + (d.output || '(no output)'));
+        if (d.exit_code === 0 || d.exit_code === null) {
+            status.innerHTML = '&#x2705; Test completed! Check output above.';
+            status.style.color = 'var(--green)';
+        } else {
+            status.innerHTML = '&#x274C; Test failed (exit ' + d.exit_code + '). Check output for errors.';
+            status.style.color = 'var(--red)';
+        }
+    } catch(e) {
+        append('[ERROR] ' + e.message);
+        status.innerHTML = '&#x274C; Error: ' + e.message;
+        status.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
+}
+
+function updateSpecs() {
+    var items = document.querySelectorAll('#spec-select-grid .spec-opt');
+    var selected = [];
+    var totalSteps = 0;
+    items.forEach(function(item) {
+        var cb = item.querySelector('input[type=checkbox]');
+        if (cb.checked) {
+            var name = item.dataset.spec;
+            var steps = parseInt(item.dataset.steps) || 10000;
+            selected.push(name);
+            totalSteps += steps;
+            item.style.opacity = '1';
+        } else {
+            item.style.opacity = '0.4';
+        }
+    });
+    document.getElementById('spec-count').textContent = selected.length;
+    document.getElementById('spec-total-steps').textContent = totalSteps;
+    var estMin = Math.round(totalSteps / 60000 * 9);
+    document.getElementById('spec-est-time').textContent = estMin + ' min';
+    // Generate command
+    var reversed = document.getElementById('spec-reversed').checked ? ' --reversed' : '';
+    var lossMask = document.getElementById('spec-loss-mask').checked ? ' --loss-mask' : '';
+    var specStr = selected.join(' ');
+    document.getElementById('gen-cmd').innerHTML = '$ python3 train_gpu.py --specialists ' + specStr + ' --steps ' + totalSteps + ' --batch 512' + reversed + lossMask;
+}
+var ROOT = '/c/Users/Admin/tabula-rasa';
+var selectedFiles = {};
+
+var FILE_MANIFEST = [
+    {name:'train_gpu.py', path:'train_gpu.py', desc:'GPU training script', default:true},
+    {name:'setup_gpu.sh', path:'setup_gpu.sh', desc:'One-click setup', default:true},
+    {name:'config.py', path:'config.py', desc:'Model configuration', default:true},
+    {name:'model.py', path:'model.py', desc:'Transformer architecture', default:true},
+    {name:'tokenizer.py', path:'tokenizer.py', desc:'Math tokenizer', default:true},
+    {name:'dataset.py', path:'dataset.py', desc:'Data generation', default:true},
+    {name:'train.py', path:'train.py', desc:'Training loop', default:true},
+    {name:'train_specialist.py', path:'train_specialist.py', desc:'Specialist trainer', default:true},
+    {name:'train_optimized.py', path:'train_optimized.py', desc:'Optimized training', default:true},
+    {name:'eval.py', path:'eval.py', desc:'Evaluation', default:true},
+    {name:'generate.py', path:'generate.py', desc:'Inference', default:true},
+    {name:'bpe_tokenizer.py', path:'bpe_tokenizer.py', desc:'BPE tokenizer', default:true},
+    {name:'specialist_network.py', path:'specialist_network.py', desc:'Specialist network', default:true},
+    {name:'specialist_router.py', path:'specialist_router.py', desc:'Skill router', default:true},
+    {name:'export_specialist.py', path:'export_specialist.py', desc:'Export utility', default:true},
+    {name:'mmap_dataset.py', path:'mmap_dataset.py', desc:'Memory-mapped dataset', default:true},
+    {name:'prepare_dataset.py', path:'prepare_dataset.py', desc:'Dataset preparation', default:true},
+    {name:'requirements.txt', path:'', desc:'Python dependencies', default:true, generated:true},
+];
+
+function renderFileList() {
+    var html = '';
+    FILE_MANIFEST.forEach(function(f) {
+        var checked = f.default !== false ? 'checked' : '';
+        selectedFiles[f.name] = f.default !== false;
+        html += '<label class="file-item">' +
+            '<input type="checkbox" class="cb" ' + checked + ' data-name="' + f.name + '" onchange="toggleFile(this)">' +
+            '<span class="nm">' + esc(f.name) + '</span>' +
+            '<span style="font-size:0.7rem;color:var(--muted)">' + esc(f.desc) + '</span>' +
+            '</label>';
+    });
+    document.getElementById('file-list').innerHTML = html;
+}
+
+function toggleFile(el) {
+    selectedFiles[el.dataset.name] = el.checked;
+}
+
+function selectAllFiles(val) {
+    document.querySelectorAll('.file-item .cb').forEach(function(cb) {
+        cb.checked = val;
+        selectedFiles[cb.dataset.name] = val;
+    });
+}
+
+async function buildPackage() {
+    var btn = document.getElementById('build-btn');
+    var status = document.getElementById('build-status');
+    var output = document.getElementById('build-output');
+    var progress = document.getElementById('build-progress');
+    var link = document.getElementById('download-link');
+
+    btn.disabled = true;
+    status.innerHTML = '&#x1F504; Building package...';
+    status.style.color = 'var(--accent)';
+    output.style.display = 'block';
+    output.innerHTML = '';
+    link.style.display = 'none';
+    progress.style.width = '0%';
+
+    var names = [];
+    for (var name in selectedFiles) {
+        if (selectedFiles[name]) names.push(name);
+    }
+
+    function appendOut(t) { output.innerHTML += t + '\n'; output.scrollTop = output.scrollHeight; }
+
+    try {
+        // Create requirements.txt first
+        appendOut('Creating requirements.txt...');
+        var reqResp = await fetch(API + '/api/create-requirements', { method: 'POST' });
+        if (!reqResp.ok) appendOut('&#x26A0; requirements.txt creation failed (non-fatal)');
+
+        // Build the tar command
+        var tarDir = '/c/Users/Admin/tabula-rasa';
+        var outPath = '/c/Users/Admin/tabula-rasa/tabula-rasa-gpu.tar.gz';
+        var include = '';
+        names.forEach(function(n) {
+            if (n !== 'requirements.txt') include += n + ' ';
+        });
+        if (selectedFiles['requirements.txt']) include += 'requirements.txt ';
+
+        appendOut('Packaging ' + names.length + ' files...');
+        progress.style.width = '30%';
+
+        // Remove old package if exists
+        var rmCmd = 'rm -f "' + outPath + '"';
+        // Create tar
+        var tarCmd = 'cd "' + tarDir + '" && tar -czf "' + outPath + '" ' + include + ' 2>&1';
+        appendOut('$ ' + tarCmd);
+        progress.style.width = '60%';
+
+        var r = await fetch(API + '/api/exec', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ command: tarCmd })
+        });
+        var d = await r.json();
+
+        if (d.exit_code === 0 || d.exit_code === null) {
+            progress.style.width = '100%';
+            appendOut('&#x2705; Package created successfully');
+
+            // Get file size
+            var sizeR = await fetch(API + '/api/file-size', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ path: outPath })
+            });
+            var sizeD = await sizeR.json();
+            var sizeStr = sizeD.size ? (sizeD.size / 1024).toFixed(1) + ' KB' : '?';
+
+            status.innerHTML = '&#x2705; Package built: tabula-rasa-gpu.tar.gz (' + sizeStr + ')';
+            status.style.color = 'var(--green)';
+            link.href = '/tabula-rasa-gpu.tar.gz';
+            link.style.display = 'inline-flex';
+            link.textContent = '&#x2B07; Download (' + sizeStr + ')';
+        } else {
+            appendOut('&#x274C; Error: ' + (d.output || 'unknown'));
+            status.innerHTML = '&#x274C; Package build failed';
+            status.style.color = 'var(--red)';
+        }
+    } catch(e) {
+        appendOut('&#x274C; ' + e.message);
+        status.innerHTML = '&#x274C; Build failed: ' + e.message;
+        status.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
+}
+
+renderFileList();
+</script>
+</body>
+</html>

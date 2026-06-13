@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Playground</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 960px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; }
+        h3 { font-size: 1rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        select, input, textarea { width: 100%; background: #0f172a; border: 1px solid var(--border); color: white; padding: 8px 10px; border-radius: 6px; font-size: 0.85rem; font-family: monospace; outline: none; }
+        select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+        textarea { min-height: 60px; resize: vertical; }
+        label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
+        .btn { padding: 8px 18px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        .btn-p { background: var(--accent); color: white; }
+        .btn-p:hover { opacity: 0.9; }
+        .btn-g { background: var(--green); color: white; }
+        .btn-g:hover { opacity: 0.9; }
+        .btn-s { background: #374151; color: white; }
+        .btn-s:hover { opacity: 0.9; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin: 2px; }
+        .t-get { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .t-post { background: rgba(59,130,246,0.15); color: #60a5fa; }
+        pre.result { background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 300px; overflow: auto; color: #d1d5db; line-height: 1.5; margin-top: 8px; }
+        .ep-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; }
+        .ep-row:hover { background: rgba(255,255,255,0.02); }
+        .ep-row .path { font-family: monospace; font-size: 0.85rem; flex: 1; color: var(--accent); }
+        .ep-row .desc { font-size: 0.75rem; color: var(--muted); flex: 2; }
+        .status-badge { padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; }
+        .s-ok { background: rgba(34,197,94,0.15); color: var(--green); }
+        .s-err { background: rgba(239,68,68,0.15); color: var(--red); }
+    </style>
+</head>
+<body>
+    <h2>&#x1F6A7; API Playground</h2>
+
+    <div class="card">
+        <h3>&#x1F4DD; Endpoints</h3>
+        <div id="endpoint-list"></div>
+    </div>
+
+    <div class="g2">
+        <div class="card">
+            <h3>&#x2699;&#xFE0F; Request</h3>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                <select id="req-method" style="width:auto;">
+                    <option value="GET">GET</option>
+                    <option value="POST" selected>POST</option>
+                </select>
+                <select id="req-port" style="width:auto;">
+                    <option value="8000">Port 8000 (serve.py)</option>
+                    <option value="8002">Port 8002 (Tabula Rasa AI)</option>
+                </select>
+                <input type="text" id="req-path" value="/generate" style="flex:1;font-family:monospace;" placeholder="/endpoint">
+            </div>
+            <label>JSON Body (POST only)</label>
+            <textarea id="req-body">{"prompt": "12+34="}</textarea>
+            <div style="margin-top:8px;display:flex;gap:8px;">
+                <button class="btn btn-p" onclick="sendRequest()">&#x25B6; Send</button>
+                <button class="btn btn-s" onclick="clearResult()">&#x1F5D1; Clear</button>
+                <span id="req-status" style="font-size:0.75rem;color:var(--muted);margin-left:auto;align-self:center;"></span>
+            </div>
+        </div>
+        <div class="card">
+            <h3>&#x1F4CA; Response</h3>
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+                <span id="resp-status" class="status-badge s-ok">200 OK</span>
+                <span id="resp-time" style="font-size:0.7rem;color:var(--muted);align-self:center;">-</span>
+                <button onclick="copyResult()" style="margin-left:auto;background:#374151;border:none;color:#d1d5db;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:0.7rem;">&#x1F4CB; Copy</button>
+            </div>
+            <pre class="result" id="resp-body">Send a request to see response.</pre>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>&#x1F4DD; Quick Tests</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-s" onclick="quickTest('8000','/health','GET')">GET /health</button>
+            <button class="btn btn-s" onclick="quickTest('8000','/api/config','GET')">GET /api/config</button>
+            <button class="btn btn-s" onclick="quickTest('8002','/skills','GET')">GET /skills</button>
+            <button class="btn btn-s" onclick="quickTest('8000','/generate','POST',JSON.stringify({prompt:'12+34='},null,2))">POST /generate</button>
+            <button class="btn btn-s" onclick="quickTest('8000','/training-progress','GET')">GET /training-progress</button>
+            <button class="btn btn-s" onclick="quickTest('8002','/health','GET')">GET /health (8002)</button>
+        </div>
+    </div>
+
+    <script>
+    var API = 'http://localhost:';
+    var endpoints = [
+        { method: 'GET', path: '/health', port: '8000', desc: 'Server health, model name, params, corrections' },
+        { method: 'GET', path: '/training-progress', port: '8000', desc: 'Live loss, accuracy, step data for chart' },
+        { method: 'GET', path: '/api/config', port: '8000', desc: 'Current Config.py values (all knobs)' },
+        { method: 'GET', path: '/api/checkpoints', port: '8000', desc: 'List .pt files with metadata' },
+        { method: 'POST', path: '/generate', port: '8000', desc: 'Run inference: {"prompt":"12+34="}' },
+        { method: 'POST', path: '/correct', port: '8000', desc: 'Teach a correction: {"prompt":"12+34=","answer":"46"}' },
+        { method: 'POST', path: '/api/train/start', port: '8000', desc: 'Start background training: {"command":"..."}' },
+        { method: 'POST', path: '/api/train/status', port: '8000', desc: 'Poll job: {"job_id":"..."}' },
+        { method: 'POST', path: '/api/train/pause', port: '8000', desc: 'Pause job: {"job_id":"..."}' },
+        { method: 'POST', path: '/api/train/resume', port: '8000', desc: 'Resume job: {"job_id":"..."}' },
+        { method: 'POST', path: '/api/train/stop', port: '8000', desc: 'Stop job: {"job_id":"..."}' },
+        { method: 'POST', path: '/api/config', port: '8000', desc: 'Save config: {"learning_rate":0.001}' },
+        { method: 'GET', path: '/health', port: '8002', desc: 'Tabula Rasa AI brain health' },
+        { method: 'GET', path: '/skills', port: '8002', desc: 'List all 12 specialists' },
+        { method: 'POST', path: '/ask', port: '8002', desc: 'Query AI: {"prompt":"What is 12+34?"}' },
+        { method: 'POST', path: '/session-memory', port: '8002', desc: 'Save memory: {"question":"...","correct":"..."}' },
+    ];
+
+    function renderEndpoints() {
+        var html = '';
+        endpoints.forEach(function(ep) {
+            var cls = ep.method === 'GET' ? 't-get' : 't-post';
+            var fn = 'quickTest(\'' + ep.port + '\',\'' + ep.path + '\',\'' + ep.method + '\')';
+            html += '<div class="ep-row" onclick="' + fn + '">';
+            html += '<span class="tag ' + cls + '">' + ep.method + '</span>';
+            html += '<span class="path">' + ep.path + '</span>';
+            html += '<span class="desc">' + ep.desc + '</span>';
+            html += '<span style="font-size:0.65rem;color:var(--muted);">port ' + ep.port + '</span>';
+            html += '</div>';
+        });
+        document.getElementById('endpoint-list').innerHTML = html;
+    }
+
+    async function sendRequest() {
+        var method = document.getElementById('req-method').value;
+        var port = document.getElementById('req-port').value;
+        var path = document.getElementById('req-path').value.trim();
+        var body = document.getElementById('req-body').value.trim();
+        var url = API + port + path;
+
+        var statusEl = document.getElementById('req-status');
+        var respStatus = document.getElementById('resp-status');
+        var respTime = document.getElementById('resp-time');
+        var respBody = document.getElementById('resp-body');
+
+        statusEl.textContent = 'Sending...';
+        statusEl.style.color = 'var(--orange)';
+        respBody.textContent = 'Waiting for response...';
+
+        var t0 = performance.now();
+        try {
+            var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+            if (method === 'POST' && body) opts.body = body;
+            var r = await fetch(url, opts);
+            var elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+            var contentType = r.headers.get('Content-Type') || '';
+            var text;
+            if (contentType.includes('application/json')) {
+                var j = await r.json();
+                text = JSON.stringify(j, null, 2);
+            } else {
+                text = await r.text();
+            }
+            respStatus.textContent = r.status + ' ' + (r.ok ? 'OK' : 'Error');
+            respStatus.className = 'status-badge ' + (r.ok ? 's-ok' : 's-err');
+            respTime.textContent = elapsed + 's';
+            respBody.textContent = text;
+            statusEl.textContent = 'Done';
+            statusEl.style.color = 'var(--green)';
+        } catch(e) {
+            respStatus.textContent = 'ERR';
+            respStatus.className = 'status-badge s-err';
+            respTime.textContent = '-';
+            respBody.textContent = 'Error: ' + e.message;
+            statusEl.textContent = 'Failed';
+            statusEl.style.color = 'var(--red)';
+        }
+    }
+
+    function quickTest(port, path, method, body) {
+        document.getElementById('req-port').value = port;
+        document.getElementById('req-path').value = path;
+        document.getElementById('req-method').value = method;
+        if (body) document.getElementById('req-body').value = body;
+        sendRequest();
+    }
+
+    function clearResult() {
+        document.getElementById('resp-body').textContent = 'Cleared.';
+        document.getElementById('resp-status').textContent = '-';
+        document.getElementById('resp-time').textContent = '-';
+        document.getElementById('req-status').textContent = '';
+    }
+
+    function copyResult() {
+        var text = document.getElementById('resp-body').textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            document.getElementById('req-status').textContent = 'Copied!';
+            document.getElementById('req-status').style.color = 'var(--green)';
+            setTimeout(function(){ document.getElementById('req-status').textContent = ''; }, 2000);
+        }).catch(function() {});
+    }
+
+    renderEndpoints();
+    </script>
+</body>
+</html>

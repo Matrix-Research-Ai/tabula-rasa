@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyperparameter Calculator</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); } .br { background: rgba(239,68,68,0.15); color: var(--red); }
+        .stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-box .v { font-size: 1.3rem; font-weight: bold; }
+        .stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+        select, input { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; width:100%; }
+        input[type="range"] { -webkit-appearance: none; height: 6px; background: #334155; border-radius: 3px; border: none; padding: 0; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+        label { font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px; }
+        .param-group { margin-bottom: 16px; }
+        .help-note { background: rgba(59,130,246,0.1); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--muted); }
+        .bar-box { margin-bottom: 6px; }
+        .bar-box .bar-label { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 2px; }
+        .bar-box .bar-track { height: 10px; background: #1e293b; border-radius: 5px; overflow: hidden; }
+        .bar-box .bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+        canvas { width:100%; height:280px; display:block; border-radius:8px; background:#0a0f1e; }
+    </style>
+</head>
+<body>
+<h2>&#x1F4CA; Hyperparameter Calculator</h2>
+
+<div class="g2">
+    <div class="card">
+        <h3>Architecture</h3>
+        <div class="param-group">
+            <label>d_model (embedding dimension)</label>
+            <input type="range" id="d-model" min="32" max="1024" value="128" step="16" oninput="recalc()">
+            <div><span id="dm-val">128</span></div>
+        </div>
+        <div class="param-group">
+            <label>n_layers (transformer blocks)</label>
+            <input type="range" id="n-layers" min="1" max="24" value="4" step="1" oninput="recalc()">
+            <div><span id="nl-val">4</span></div>
+        </div>
+        <div class="param-group">
+            <label>n_heads (attention heads)</label>
+            <input type="range" id="n-heads" min="1" max="16" value="4" step="1" oninput="recalc()">
+            <div><span id="nh-val">4</span></div>
+        </div>
+        <div class="param-group">
+            <label>d_ff (FFN inner dimension)</label>
+            <input type="range" id="d-ff" min="64" max="4096" value="512" step="32" oninput="recalc()">
+            <div><span id="df-val">512</span></div>
+        </div>
+        <div class="param-group">
+            <label>vocab_size</label>
+            <input type="range" id="vocab" min="8" max="512" value="24" step="1" oninput="recalc()">
+            <div><span id="vocab-val">24</span></div>
+        </div>
+        <div class="param-group">
+            <label>max_seq_len</label>
+            <input type="range" id="seq-len" min="8" max="1024" value="64" step="8" oninput="recalc()">
+            <div><span id="seq-val">64</span></div>
+        </div>
+        <div class="param-group">
+            <label>batch_size</label>
+            <input type="range" id="batch" min="1" max="256" value="32" step="1" oninput="recalc()">
+            <div><span id="batch-val">32</span></div>
+        </div>
+    </div>
+    <div>
+        <div class="card">
+            <h3>Parameter Breakdown</h3>
+            <div style="max-height:400px;overflow-y:auto;" id="param-breakdown"></div>
+        </div>
+        <div class="card">
+            <h3>Resource Estimates</h3>
+            <div id="resource-estimates"></div>
+        </div>
+    </div>
+</div>
+
+<div class="g4">
+    <div class="stat-box"><div class="v" id="total-params">-</div><div class="l">Total Parameters</div></div>
+    <div class="stat-box"><div class="v" id="model-size">-</div><div class="l">Model Size (MB)</div></div>
+    <div class="stat-box"><div class="v" id="memory-est">-</div><div class="l">VRAM Estimate</div></div>
+    <div class="stat-box"><div class="v" id="flops-est">-</div><div class="l">FLOPs / forward</div></div>
+</div>
+
+<div class="g2">
+    <div class="card">
+        <h3>Parameter Distribution</h3>
+        <canvas id="param-chart"></canvas>
+    </div>
+    <div class="card">
+        <h3>Recommended Settings</h3>
+        <div id="rec-settings"></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Common Configurations</h3>
+    <div class="g3" style="gap:8px;">
+        <button onclick="loadPreset('tiny','Tiny (debug)')" style="background:#0f172a;border:1px solid var(--border);color:white;padding:8px;border-radius:6px;cursor:pointer;">Tiny (debug)</button>
+        <button onclick="loadPreset('small','Small')" style="background:#0f172a;border:1px solid var(--border);color:white;padding:8px;border-radius:6px;cursor:pointer;">Small</button>
+        <button onclick="loadPreset('base','Base (GPT-2 scale)')" style="background:#0f172a;border:1px solid var(--border);color:white;padding:8px;border-radius:6px;cursor:pointer;">Base</button>
+        <button onclick="loadPreset('current','Current Tabula Rasa')" style="background:#0f172a;border:1px solid var(--accent);color:white;padding:8px;border-radius:6px;cursor:pointer;">Current Config</button>
+        <button onclick="loadPreset('optimized','Optimized for math')" style="background:#0f172a;border:1px solid var(--green);color:white;padding:8px;border-radius:6px;cursor:pointer;">Optimized (Math)</button>
+        <button onclick="loadPreset('big','Large (experiment)')" style="background:#0f172a;border:1px solid var(--purple);color:white;padding:8px;border-radius:6px;cursor:pointer;">Large</button>
+    </div>
+</div>
+
+<script>
+var presets = {
+    tiny: {dm:64, nl:2, nh:2, df:128, vocab:16, seq:32, batch:16},
+    small: {dm:128, nl:4, nh:4, df:256, vocab:24, seq:64, batch:32},
+    base: {dm:768, nl:12, nh:12, df:3072, vocab:64, seq:128, batch:64},
+    current: {dm:128, nl:4, nh:4, df:512, vocab:24, seq:64, batch:32},
+    optimized: {dm:256, nl:6, nh:8, df:1024, vocab:24, seq:128, batch:64},
+    big: {dm:512, nl:12, nh:8, df:2048, vocab:64, seq:256, batch:32}
+};
+
+function loadPreset(name, label) {
+    var p = presets[name];
+    if (!p) return;
+    document.getElementById('d-model').value = p.dm;
+    document.getElementById('n-layers').value = p.nl;
+    document.getElementById('n-heads').value = p.nh;
+    document.getElementById('d-ff').value = p.df;
+    document.getElementById('vocab').value = p.vocab;
+    document.getElementById('seq-len').value = p.seq;
+    document.getElementById('batch').value = p.batch;
+    setLabel('dm-val', p.dm);
+    setLabel('nl-val', p.nl);
+    setLabel('nh-val', p.nh);
+    setLabel('df-val', p.df);
+    setLabel('vocab-val', p.vocab);
+    setLabel('seq-val', p.seq);
+    setLabel('batch-val', p.batch);
+    recalc();
+}
+
+function setLabel(id, v) {
+    document.getElementById(id).textContent = v;
+}
+
+function getVals() {
+    return {
+        dm: parseInt(document.getElementById('d-model').value),
+        nl: parseInt(document.getElementById('n-layers').value),
+        nh: parseInt(document.getElementById('n-heads').value),
+        df: parseInt(document.getElementById('d-ff').value),
+        vocab: parseInt(document.getElementById('vocab').value),
+        seq: parseInt(document.getElementById('seq-len').value),
+        batch: parseInt(document.getElementById('batch').value)
+    };
+}
+
+function recalc() {
+    var v = getVals();
+    setLabel('dm-val', v.dm);
+    setLabel('nl-val', v.nl);
+    setLabel('nh-val', v.nh);
+    setLabel('df-val', v.df);
+    setLabel('vocab-val', v.vocab);
+    setLabel('seq-val', v.seq);
+    setLabel('batch-val', v.batch);
+
+    // Parameter calculations
+    var dk = v.dm / v.nh;
+    var qkvW = v.dm * v.dm * 3; // Q, K, V projections combined
+    var attnOut = v.dm * v.dm;   // output projection
+    var attnParams = (qkvW + attnOut) * v.nl;
+
+    var ffn1 = v.dm * v.df;
+    var ffn2 = v.df * v.dm;
+    var ffnParams = (ffn1 + ffn2) * v.nl;
+
+    var embParams = v.vocab * v.dm;
+    var posParams = v.seq * v.dm;
+    var lnParams = v.dm * 2 * (v.nl * 2 + 1); // 2 LayerNorms per block + output LN
+    var outputParams = v.dm * v.vocab;
+
+    var total = attnParams + ffnParams + embParams + posParams + lnParams + outputParams;
+    var modelSizeMB = total * 4 / (1024 * 1024); // float32
+
+    // Memory estimate (forward + backward)
+    var optMemory = total * 4 * 3; // Adam: params, momentum, variance
+    var gradMemory = total * 4;
+    var actMemory = v.batch * v.seq * v.dm * 4 * (v.nl * 10 + 2); // rough
+    var totalMemory = optMemory + gradMemory + actMemory;
+    var vramMB = totalMemory / (1024 * 1024);
+
+    // FLOPs per forward pass
+    var attnFlops = v.batch * v.nl * v.nh * v.seq * v.seq * dk * 2; // QK^T and PV
+    var ffnFlops = v.batch * v.nl * v.seq * v.dm * v.df * 4;
+    var embFlops = v.batch * v.seq * v.dm * 2;
+    var totalFlops = attnFlops + ffnFlops + embFlops;
+
+    // Update stats
+    document.getElementById('total-params').textContent = total.toLocaleString();
+    document.getElementById('model-size').textContent = modelSizeMB.toFixed(2) + ' MB';
+    document.getElementById('memory-est').textContent = vramMB < 1024 ? vramMB.toFixed(0) + ' MB' : (vramMB/1024).toFixed(2) + ' GB';
+    document.getElementById('flops-est').textContent = totalFlops < 1e9 ? (totalFlops/1e6).toFixed(1) + ' M' : (totalFlops/1e9).toFixed(2) + ' G';
+
+    // Parameter breakdown
+    var items = [
+        {name:'Attention (QKV + Out) x ' + v.nl, val:attnParams, pct: attnParams/total*100},
+        {name:'FFN (up + down) x ' + v.nl, val:ffnParams, pct: ffnParams/total*100},
+        {name:'Token Embedding', val:embParams, pct: embParams/total*100},
+        {name:'Position Embedding', val:posParams, pct: posParams/total*100},
+        {name:'LayerNorms', val:lnParams, pct: lnParams/total*100},
+        {name:'Output (unembed)', val:outputParams, pct: outputParams/total*100}
+    ];
+    var bd = '';
+    for (var i = 0; i < items.length; i++) {
+        bd += '<div class="bar-box"><div class="bar-label"><span>' + items[i].name + '</span><span>' + items[i].val.toLocaleString() + ' (' + items[i].pct.toFixed(1) + '%)</span></div><div class="bar-track"><div class="bar-fill" style="width:' + items[i].pct + '%;background:' + (['#3b82f6','#22c55e','#a855f7','#f59e0b','#64748b','#ef4444'][i]) + ';"></div></div></div>';
+    }
+    document.getElementById('param-breakdown').innerHTML = bd;
+
+    // Resource estimates
+    var stepsPerSec = v.dm <= 128 ? (v.dm <= 64 ? 2.0 : 0.8) : (v.dm <= 256 ? 0.3 : (v.dm <= 512 ? 0.05 : 0.005));
+    var eta1000 = (1000 / stepsPerSec / 60).toFixed(1);
+    document.getElementById('resource-estimates').innerHTML =
+        '<div class="row"><span>Training speed (est.)</span><span>' + stepsPerSec.toFixed(2) + ' steps/s</span></div>' +
+        '<div class="row"><span>ETA 1K steps</span><span>' + eta1000 + ' min</span></div>' +
+        '<div class="row"><span>ETA 30K steps</span><span>' + (eta1000 * 30 / 60).toFixed(1) + ' h</span></div>' +
+        '<div class="row"><span>Batch tokens/step</span><span>' + (v.batch * v.seq).toLocaleString() + '</span></div>' +
+        '<div class="row"><span>Gradients memory</span><span>' + (gradMemory/(1024*1024)).toFixed(1) + ' MB</span></div>' +
+        '<div class="row"><span>Optimizer (Adam)</span><span>' + (optMemory/(1024*1024)).toFixed(1) + ' MB</span></div>' +
+        '<div class="row"><span>Activations memory</span><span>' + (actMemory/(1024*1024)).toFixed(1) + ' MB</span></div>';
+
+    // Recommendations
+    var recs = '';
+    if (v.dm % v.nh !== 0) recs += '<div class="warn-box" style="background:rgba(239,68,68,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F d_model (' + v.dm + ') not divisible by n_heads (' + v.nh + '). d_k = ' + (v.dm/v.nh).toFixed(1) + ' which is fractional!</div>';
+    if (v.df / v.dm < 3) recs += '<div class="warn-box" style="background:rgba(234,179,8,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F d_ff / d_model = ' + (v.df/v.dm).toFixed(1) + 'x — typical is 4x. Consider increasing d_ff to ' + (v.dm*4) + '.</div>';
+    if (v.df / v.dm > 6) recs += '<div class="warn-box" style="background:rgba(234,179,8,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F d_ff / d_model = ' + (v.df/v.dm).toFixed(1) + 'x — unusual. Typical is 4x. May overfit or be memory-heavy.</div>';
+    if (total > 100e6) recs += '<div class="warn-box" style="background:rgba(239,68,68,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F Model has >100M params — may be too large for a CPU-only math task.</div>';
+    if (v.batch < 16) recs += '<div class="warn-box" style="background:rgba(234,179,8,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F Very small batch size. Gradient estimates may be noisy. Consider at least 16.</div>';
+    if (v.nl >= 8 && v.dm < 128) recs += '<div class="warn-box" style="background:rgba(234,179,8,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F Deep but narrow model (' + v.nl + ' layers x ' + v.dm + ' dims). May struggle with vanishing gradients.</div>';
+    if (v.dm < 64 && v.nl > 4) recs += '<div class="warn-box" style="background:rgba(239,68,68,0.1);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.8rem;">\u26A0\uFE0F Very narrow model. Consider increasing d_model to at least 64 for multi-head attention to work well.</div>';
+    if (!recs) recs = '<div style="color:#22c55e;font-size:0.85rem;">\u2705 Configuration looks balanced and reasonable.</div>';
+
+    document.getElementById('rec-settings').innerHTML = recs;
+
+    // Draw parameter distribution chart
+    drawParamChart(items);
+}
+
+function drawParamChart(items) {
+    var c = document.getElementById('param-chart');
+    var rect = c.parentElement.getBoundingClientRect();
+    c.width = Math.min(rect.width - 20, 500) * 2;
+    c.height = 280 * 2;
+    c.style.width = Math.min(rect.width - 20, 500) + 'px';
+    c.style.height = '280px';
+    var ctx = c.getContext('2d');
+    ctx.scale(2,2);
+    var W = c.width/2, H = c.height/2;
+
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0,0,W,H);
+
+    var total = items.reduce(function(a,b){return a+b.val;}, 0);
+    if (total === 0) { ctx.fillText('No params', W/2, H/2); return; }
+
+    var colors = ['#3b82f6','#22c55e','#a855f7','#f59e0b','#64748b','#ef4444'];
+    var labels = ['Attn','FFN','Emb','Pos','LN','Out'];
+
+    // Pie chart
+    var cx = 120, cy = H/2, r = 80;
+    var start = -Math.PI/2;
+    for (var i = 0; i < items.length; i++) {
+        var angle = (items[i].val / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, start, start + angle);
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        start += angle;
+    }
+
+    // Legend
+    var lx = 220, ly = 35;
+    for (var i = 0; i < items.length; i++) {
+        ctx.fillStyle = colors[i];
+        ctx.fillRect(lx, ly + i * 22, 12, 12);
+        ctx.fillStyle = '#f1f5f9';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(labels[i] + ' (' + (items[i].val/total*100).toFixed(1) + '%)', lx + 18, ly + i * 22 + 11);
+    }
+}
+
+// Init
+document.querySelectorAll('input[type="range"]').forEach(function(r) {
+    r.addEventListener('input', recalc);
+});
+setTimeout(recalc, 100);
+window.addEventListener('resize', recalc);
+</script>
+</body>
+</html>

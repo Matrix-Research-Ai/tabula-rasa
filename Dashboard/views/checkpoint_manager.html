@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkpoint Manager</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 1100px; margin: 0 auto; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h3 { font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .stat { text-align: center; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+        .stat .v { font-size: 1.6rem; font-weight: bold; }
+        .stat .l { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+        .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 0.75rem; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { text-align: left; padding: 8px 12px; background: #0f172a; color: var(--muted); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        td { padding: 8px 12px; border-bottom: 1px solid rgba(51,65,85,0.3); color: #d1d5db; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+        .badge-yellow { background: rgba(245,158,11,0.15); color: var(--orange); }
+        .badge-dim { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .badge-blue { background: rgba(59,130,246,0.15); color: var(--accent); }
+        .badge-purple { background: rgba(168,85,247,0.15); color: var(--purple); }
+        .btn { padding: 6px 14px; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; font-size: 0.75rem; }
+        .btn-p { background: var(--accent); color: white; }
+        .btn:hover { opacity: 0.85; }
+        .path { font-size: 0.7rem; color: var(--muted); font-family: monospace; }
+        .empty { text-align: center; padding: 20px; color: var(--muted); }
+        .group-header { background: rgba(59,130,246,0.05); font-weight: 600; }
+        .group-header td { color: var(--accent); padding: 10px 12px 6px; border-bottom: 1px solid rgba(59,130,246,0.2); }
+        .desc { font-size: 0.75rem; color: var(--muted); margin-left: 8px; font-weight: normal; }
+    </style>
+</head>
+<body>
+<h2>&#x1F4BE; Checkpoint Manager</h2>
+
+<div class="g4">
+    <div class="stat"><div class="v" id="total-ckpt" style="color:var(--accent)">-</div><div class="l">Total Checkpoints</div></div>
+    <div class="stat"><div class="v" id="total-size" style="color:var(--green)">-</div><div class="l">Total Size</div></div>
+    <div class="stat"><div class="v" id="ckpt-trained" style="color:var(--green)">-</div><div class="l">Trained (acc &gt; 0)</div></div>
+    <div class="stat"><div class="v" id="ckpt-running" style="color:var(--orange)">-</div><div class="l">Current Run</div></div>
+</div>
+
+<div class="legend">
+    <span class="legend-item"><span style="background:var(--green);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Trained (has accuracy)</span>
+    <span class="legend-item"><span style="background:var(--orange);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> 0% accuracy (untrained/init)</span>
+    <span class="legend-item"><span style="background:var(--muted);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Unknown (no metadata)</span>
+    <span class="legend-item"><span style="background:var(--accent);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Step checkpoint</span>
+    <span class="legend-item"><span style="background:var(--purple);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Data file</span>
+</div>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-weight:600;font-size:0.95rem">&#x1F4C1; All Checkpoints</span>
+        <button class="btn btn-p" onclick="refreshCheckpoints()">&#x21BB; Refresh</button>
+    </div>
+    <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th>Name</th><th>Path / Purpose</th><th>Size</th><th>Step</th><th>Accuracy</th><th>Loss</th></tr></thead>
+            <tbody id="ckpt-tbody"><tr><td colspan="6" class="empty">Scanning checkpoints...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+var API = 'http://localhost:8000';
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function formatSize(bytes) {
+    if (!bytes) return '-';
+    var mb = bytes / 1024 / 1024;
+    return mb >= 1 ? mb.toFixed(1) + ' MB' : (bytes / 1024).toFixed(1) + ' KB';
+}
+
+async function refreshCheckpoints() {
+    var tbody = document.getElementById('ckpt-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Scanning...</td></tr>';
+
+    try {
+        var r = await fetch(API + '/api/checkpoints');
+        var d = await r.json();
+        var list = d.checkpoints || [];
+        renderTable(list);
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:var(--red)">Error: ' + esc(e.message) + '</td></tr>';
+    }
+}
+
+function renderTable(list) {
+    var tbody = document.getElementById('ckpt-tbody');
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No checkpoint files found.</td></tr>';
+        document.getElementById('total-ckpt').textContent = '0';
+        document.getElementById('total-size').textContent = '-';
+        document.getElementById('ckpt-trained').textContent = '0';
+        document.getElementById('ckpt-running').textContent = '-';
+        return;
+    }
+
+    var totalSize = 0, trained = 0;
+    var html = '';
+
+    // Define groups with descriptions
+    var groups = [
+        { prefix: 'checkpoints/', label: 'General Model', desc: 'Root checkpoints from the main MathTransformer training. Used by the API server (/health, /generate, /correct). The "best.pt" is loaded on startup.' },
+        { prefix: 'specialists/math/add/', label: 'Addition Specialist', desc: 'Addition-specific checkpoints. Saved by train_specialist.py add. Uses reversed digits + scratchpad format. Currently running with combined tokens + prompt masking.' },
+        { prefix: 'specialists/math/general/', label: 'General Math', desc: 'All-operations generalist. Trained on add/sub/mul/div mixed data. Uses EWC (Elastic Weight Consolidation) for multi-task retention.' },
+        { prefix: 'data/', label: 'Data Tensors', desc: 'Pre-tokenized training inputs/targets for faster reloading. Not model weights — skip these for inference.' }
+    ];
+
+    var currentGroup = null;
+    var groupCount = {};
+
+    list.forEach(function(f) {
+        var matched = false;
+        for (var g = 0; g < groups.length; g++) {
+            if (f.path && f.path.startsWith(groups[g].prefix)) {
+                if (currentGroup !== g) {
+                    if (currentGroup !== null) {
+                        // Close previous group
+                        html += '<tr><td colspan="6" style="padding:4px 12px;font-size:0.75rem;color:var(--muted);text-align:right;">' +
+                            (groupCount[g] || 0) + ' files in this group</td></tr>';
+                    }
+                    currentGroup = g;
+                    html += '<tr class="group-header"><td colspan="6">' +
+                        esc(groups[g].label) +
+                        ' <span class="desc">' + esc(groups[g].desc) + '</span></td></tr>';
+                    groupCount[g] = 0;
+                }
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) {
+            if (currentGroup !== null) {
+                html += '<tr><td colspan="6" style="padding:4px 12px;font-size:0.75rem;color:var(--muted);text-align:right;">' +
+                    (groupCount[currentGroup] || 0) + ' files</td></tr>';
+                currentGroup = null;
+            }
+        }
+        if (matched) groupCount[currentGroup] = (groupCount[currentGroup] || 0) + 1;
+
+        totalSize += f.size || 0;
+        var hasAcc = f.acc !== null && f.acc !== undefined;
+        var displayAcc = f.acc;
+        if (hasAcc) {
+            if (displayAcc > 1) displayAcc = displayAcc; // already percentage
+            else displayAcc = displayAcc * 100; // convert 0-1 to percentage
+        }
+        var isTrained = hasAcc && displayAcc > 0;
+        var accStr = hasAcc ? displayAcc.toFixed(1) + '%' : '-';
+        var stepStr = f.step !== null && f.step !== undefined ? f.step : '-';
+        var lossStr = f.loss !== null && f.loss !== undefined ? f.loss.toFixed(4) : '-';
+        var sizeStr = formatSize(f.size);
+
+        if (isTrained) trained++;
+
+        // Determine badge color based on file name
+        var badgeClass = 'badge-dim';
+        if (isTrained) badgeClass = 'badge-green';
+        else if (hasAcc && f.acc === 0) badgeClass = 'badge-yellow';
+        if (f.name && (f.name.includes('checkpoint_') || f.name.match(/^\d+/))) badgeClass = 'badge-blue';
+        if (f.name && f.name === 'inputs.pt' || f.name === 'targets.pt') badgeClass = 'badge-purple';
+
+        // Show purpose description for common files
+        var purpose = '';
+        if (f.name === 'best.pt') purpose = 'Best accuracy checkpoint, loaded at startup';
+        else if (f.name === 'final.pt') purpose = 'Final checkpoint at end of training';
+        else if (f.name && f.name.startsWith('checkpoint_')) purpose = 'Periodic save during training';
+        else if (f.name === 'finetuned.pt') purpose = 'Fine-tuned after corrections';
+        else if (f.name === 'inputs.pt' || f.name === 'targets.pt') purpose = 'Pre-tokenized training data (not model weights)';
+        else purpose = f.path || '';
+
+        html += '<tr>' +
+            '<td style="font-weight:600"><span class="badge ' + badgeClass + '">' + esc(f.name) + '</span></td>' +
+            '<td class="path">' + esc(purpose) + '</td>' +
+            '<td>' + sizeStr + '</td>' +
+            '<td>' + stepStr + '</td>' +
+            '<td>' + accStr + '</td>' +
+            '<td style="color:var(--muted)">' + lossStr + '</td>' +
+            '</tr>';
+    });
+
+    // Close last group
+    if (currentGroup !== null) {
+        html += '<tr><td colspan="6" style="padding:4px 12px;font-size:0.75rem;color:var(--muted);text-align:right;">' +
+            (groupCount[currentGroup] || 0) + ' files</td></tr>';
+    }
+
+    tbody.innerHTML = html;
+
+    document.getElementById('total-ckpt').textContent = list.length;
+    document.getElementById('total-size').textContent = formatSize(totalSize);
+    document.getElementById('ckpt-trained').textContent = trained;
+    document.getElementById('ckpt-running').textContent = 'job 11273d4e';
+}
+
+refreshCheckpoints();
+</script>
+</body>
+</html>

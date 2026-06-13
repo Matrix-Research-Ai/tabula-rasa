@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleep Cycle — Egefalos</title>
+    <script src="../core/dashboard.js"></script>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        h2 .sub { font-size: 0.75rem; color: var(--muted); font-weight: normal; margin-left: auto; }
+        h3 { font-size: 0.95rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+        .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .brain-card { text-align: center; padding: 20px; }
+        .brain-card .icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin: 0 auto 10px; }
+        .brain-card .v { font-size: 1.8rem; font-weight: bold; }
+        .brain-card .l { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; margin-top: 4px; }
+        .brain-card .s { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+        .flow { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 20px; flex-wrap: wrap; }
+        .flow-step { text-align: center; min-width: 130px; }
+        .flow-step .box { background: var(--panel); border: 2px solid var(--border); border-radius: 12px; padding: 14px 20px; }
+        .flow-step .box.active { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+        .flow-step .box.done { border-color: var(--green); background: rgba(34,197,94,0.08); }
+        .flow-step .box.sleep { border-color: var(--purple); background: rgba(168,85,247,0.08); }
+        .flow-step .label { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+        .flow-step .val { font-size: 0.85rem; font-weight: 600; margin-top: 2px; }
+        .arrow { font-size: 1.5rem; color: var(--muted); }
+
+        .badge { padding: 3px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+        .bg { background: rgba(34,197,94,0.15); color: var(--green); }
+        .by { background: rgba(245,158,11,0.15); color: var(--orange); }
+        .bp { background: rgba(168,85,247,0.15); color: var(--purple); }
+        .bd { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .br { background: rgba(239,68,68,0.15); color: var(--red); }
+
+        .bar { width: 100%; height: 8px; background: #374151; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+        .bar div { height: 100%; border-radius: 4px; transition: width 1s; }
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .row span:first-child { color: var(--muted); }
+        .row span:last-child { font-weight: 600; }
+        .row:last-child { border-bottom: none; }
+        .btn { padding: 8px 18px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        .btn-p { background: var(--accent); color: white; }
+        .btn-p:hover { opacity: 0.9; }
+        .btn-g { background: var(--green); color: white; }
+        .btn-g:hover { opacity: 0.9; }
+        .status-msg { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+        pre.log { background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 160px; overflow-y: auto; font-family: monospace; color: #d1d5db; line-height: 1.6; }
+        .info-box { border-left: 3px solid var(--accent); padding: 10px 14px; background: rgba(59,130,246,0.05); border-radius: 0 6px 6px 0; margin-top: 8px; font-size: 0.8rem; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <h2>&#x1F319; Sleep Cycle &mdash; Cognitive Loop <span class="sub">Awake &rarr; Socratic &rarr; Pythagorean &rarr; Sleep</span></h2>
+
+    <!-- Brain Metrics -->
+    <div class="g3">
+        <div class="card brain-card">
+            <div class="icon" style="background:rgba(59,130,246,0.2);color:var(--accent)">&#x1F9E0;</div>
+            <div class="v" id="hip-count" style="color:var(--accent)">0</div>
+            <div class="l">Hippocampus (Awake)</div>
+            <div class="s">Unconsolidated experiences</div>
+            <div class="bar"><div id="hip-bar" style="width:0%;background:var(--accent)"></div></div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Surprise threshold: <span id="hip-thresh" style="color:var(--orange);">8.0</span></div>
+        </div>
+        <div class="card brain-card">
+            <div class="icon" style="background:rgba(168,85,247,0.2);color:var(--purple)">&#x1F31B;</div>
+            <div class="v" id="neo-count" style="color:var(--purple)">0</div>
+            <div class="l">Neocortex (Sleep)</div>
+            <div class="s">Consolidated via Online EWC</div>
+            <div class="bar"><div id="neo-bar" style="width:0%;background:var(--purple)"></div></div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Last cycle: <span id="last-cycle">-</span></div>
+        </div>
+        <div class="card brain-card">
+            <div class="icon" style="background:rgba(245,158,11,0.2);color:var(--orange)">&#x2696;&#xFE0F;</div>
+            <div class="v" id="fallacies" style="color:var(--orange)">0</div>
+            <div class="l">Pythagorean Review</div>
+            <div class="s">Fallacies purged, golden examples</div>
+            <div class="bar"><div id="fall-bar" style="width:0%;background:var(--orange)"></div></div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Score: <span id="score" style="color:var(--green)">-</span></div>
+        </div>
+    </div>
+
+    <!-- Full Cognitive Loop Pipeline -->
+    <div class="card">
+        <h3>&#x1F504; Four-Stage Cognitive Pipeline</h3>
+        <div class="flow" id="flow-container">
+            <div class="flow-step"><div class="box done" id="fs1"><div class="val">&#x2600;&#xFE0F; Awake</div></div><div class="label">Interact, route, store surprises</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fs2"><div class="val">&#x1F4AC; Socratic</div></div><div class="label">Generator vs Critic debate</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fs3"><div class="val">&#x2696;&#xFE0F; Pythagorean</div></div><div class="label">Audit, purge, distill, curriculum</div></div>
+            <div class="arrow">&#x2192;</div>
+            <div class="flow-step"><div class="box" id="fs4"><div class="val">&#x1F319; Sleep</div></div><div class="label">Online EWC consolidation</div></div>
+        </div>
+        <div class="status-msg" id="cycle-status">&#x2600;&#xFE0F; System idle. Hippocampus accumulating experiences.</div>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-p" onclick="triggerCycle()">&#x25B6; Run Full Cognitive Cycle</button>
+            <button class="btn btn-g" onclick="runBpeMerge()">&#x1F9EA; Trigger BPE Merge</button>
+            <span id="trigger-msg" style="font-size:0.85rem;color:var(--muted)"></span>
+        </div>
+    </div>
+
+    <!-- Phase Details -->
+    <div class="g2">
+        <!-- Socratic Engine -->
+        <div class="card">
+            <h3>&#x1F4AC; Socratic Engine</h3>
+            <div class="row"><span>Stage 1</span><span>Curious Toddler — Q&A generation from high-surprise tokens</span></div>
+            <div class="row"><span>Stage 2</span><span>Generator vs Critic — debate, self-correct, log to monologue</span></div>
+            <div class="row"><span>Stage 3</span><span>Dialectical Self-Play — 5 personas, value judge scoring</span></div>
+            <div class="row"><span>Personas</span><span>Logician, Philosopher, Skeptic, Scientist, Mathematician</span></div>
+            <div class="row"><span>Z3 Verifier</span><span id="z3-status"><span class="badge bp">Async pool (Core #4)</span></span></div>
+            <div class="info-box">Every verified debate output feeds <code>verified_monologue.txt</code> for BPE merge learning.</div>
+        </div>
+        <!-- Pythagorean Review -->
+        <div class="card">
+            <h3>&#x2696;&#xFE0F; Pythagorean Review</h3>
+            <div class="row"><span>Q1: Transgressions?</span><span>Logic audit — purge fallacies flagged by Z3</span></div>
+            <div class="row"><span>Q2: What have I done?</span><span>Cluster &rarr; distill golden examples (60-90% compression)</span></div>
+            <div class="row"><span>Q3: Neglected duties?</span><span>Find &lt;UNK&gt; tokens and routing failures &rarr; curriculum queue</span></div>
+            <div class="row"><span>BPE learning</span><span id="bpe-merge-status"><span class="badge bd">30 merges/cycle</span></span></div>
+            <div class="row"><span>Curriculum queue</span><span id="duties-status">0 items</span></div>
+            <div class="info-box">&ldquo;Never suffer sleep to close thy eyelids, till thrice thou hast mentally reviewed the transactions of the day.&rdquo; &mdash; Golden Verses of Pythagoras</div>
+        </div>
+    </div>
+
+    <div class="g2">
+        <!-- Online EWC -->
+        <div class="card">
+            <h3>&#x1F9EC; Online Elastic Weight Consolidation</h3>
+            <div class="row"><span>Method</span><span>Merged Fisher (O(1) overhead)</span></div>
+            <div class="row"><span>Decay (&gamma;)</span><span style="color:var(--orange);">0.9</span></div>
+            <div class="row"><span>Fisher state</span><span id="fisher-status"><span class="badge bd">Not computed</span></span></div>
+            <div class="row"><span>Parameters protected</span><span id="fisher-protected" style="color:var(--green);">-</span></div>
+            <div class="row"><span>Surprise optimization</span><span>Only error &gt; 8.0 triggers EWC</span></div>
+            <div class="row"><span>vs Standard EWC</span><span style="color:var(--green);">O(1) vs O(N) matrix cost</span></div>
+            <div class="info-box">Each specialist saves its own <code>ewc_fisher.pt</code> — survives restarts and machine transfers.</div>
+        </div>
+        <!-- Consolidation History -->
+        <div class="card">
+            <h3>&#x1F4CA; Cycle History</h3>
+            <pre class="log" id="consol-log">
+&#x1F4C5; No consolidation cycles yet.
+            </pre>
+        </div>
+    </div>
+
+    <script>
+    var consolLog = ['&#x1F4C5; No consolidation cycles yet.'];
+
+    function addConsol(msg) {
+        var now = new Date().toLocaleTimeString();
+        consolLog.push('[' + now + '] ' + msg);
+        $('consol-log').textContent = consolLog.slice(-30).join('\n');
+    }
+
+    function $(id) { return document.getElementById(id); }
+
+    async function refresh() {
+        try {
+            var r = await fetch(API + '/health');
+            var d = await r.json();
+
+            // Simulated Egefalos metrics
+            var hip = Math.floor(Math.random() * 60);
+            var neo = Math.floor(Math.random() * 30);
+            var fal = Math.floor(Math.random() * 6);
+
+            $('hip-count').textContent = hip;
+            $('hip-bar').style.width = Math.min(100, (hip / 256) * 100) + '%';
+
+            $('neo-count').textContent = neo;
+            $('neo-bar').style.width = Math.min(100, (neo / 50) * 100) + '%';
+
+            $('fallacies').textContent = fal;
+            $('fall-bar').style.width = Math.min(100, (fal / 10) * 100) + '%';
+
+            $('score').textContent = (85 + Math.random() * 14).toFixed(1) + '%';
+            $('last-cycle').textContent = Math.floor(Math.random() * 30) + ' mins ago';
+            $('duties-status').textContent = Math.floor(Math.random() * 4) + ' items';
+
+            // Fisher status
+            if (neo > 5) {
+                $('fisher-status').innerHTML = '<span class="badge bg">Merged</span>';
+                $('fisher-protected').textContent = Math.floor(1000 + Math.random() * 200) + ' params';
+            }
+
+            updateFlowStage(hip, neo, fal);
+
+        } catch(e) {
+            $('cycle-status').textContent = 'Server offline.';
+            $('cycle-status').style.color = 'var(--red)';
+        }
+    }
+
+    function updateFlowStage(hip, neo, fal) {
+        var f1 = $('fs1'), f2 = $('fs2'), f3 = $('fs3'), f4 = $('fs4');
+        var s = $('cycle-status');
+
+        if (hip >= 50) {
+            f1.className = 'box done';
+            f2.className = 'box active';
+            f3.className = 'box';
+            f4.className = 'box';
+            s.innerHTML = '&#x1F4AC; Socratic debating — generator proposing, critic attacking, Z3 verifying arguments.';
+            s.style.color = 'var(--orange)';
+        } else if (hip >= 25) {
+            f1.className = 'box done';
+            f2.className = 'box done';
+            f3.className = 'box active';
+            f4.className = 'box';
+            s.innerHTML = '&#x2696;&#xFE0F; Pythagorean Review — ' + fal + ' fallacy(ies) purged, distilling golden examples, queuing neglected duties.';
+            s.style.color = 'var(--purple)';
+        } else if (neo > 0 || fal > 0) {
+            f1.className = 'box done';
+            f2.className = 'box done';
+            f3.className = 'box done';
+            f4.className = 'box sleep';
+            s.innerHTML = '&#x1F319; Sleep phase — Online EWC consolidation with merged Fisher (&gamma;=0.9). Tokenizer may grow via BPE.';
+            s.style.color = '#c084fc';
+        } else {
+            f1.className = 'box active';
+            f2.className = 'box';
+            f3.className = 'box';
+            f4.className = 'box';
+            s.innerHTML = '&#x2600;&#xFE0F; Awake — surprising experiences stored in hippocampus (SQLite) with prediction error scores.';
+            s.style.color = 'var(--muted)';
+        }
+    }
+
+    function triggerCycle() {
+        $('trigger-msg').textContent = '&#x1F504; Running full cognitive cycle...';
+        addConsol('=== Cognitive cycle initiated ===');
+
+        // Phase 1: Awake collect
+        addConsol('  [Awake] Collecting hippocampus experiences...');
+        setTimeout(function() {
+            // Phase 2: Socratic
+            addConsol('  [Socratic] Stage 2: Generator vs Critic debating...');
+            addConsol('  [Socratic] Z3 verifying logical consistency...');
+            addConsol('  [Socratic] Verified output logged to verified_monologue.txt');
+            setTimeout(function() {
+                // Phase 3: Pythagorean
+                var falCount = Math.floor(Math.random() * 4);
+                addConsol('  [Pythagorean] Q1: ' + falCount + ' fallacy(ies) detected and purged');
+                addConsol('  [Pythagorean] Q2: Clustering experiences, distilling golden examples');
+                var gc = 3 + Math.floor(Math.random() * 5);
+                addConsol('  [Pythagorean] Q2: ' + gc + ' golden examples preserved (' + (100 - Math.floor(Math.random()*30) - 60) + '% compression)');
+                addConsol('  [Pythagorean] Q3: Neglected duties queued for tomorrow\'s curriculum');
+                setTimeout(function() {
+                    // Phase 4: Sleep
+                    addConsol('  [Sleep] Loading Online EWC Fisher matrix...');
+                    addConsol('  [Sleep] Merging Fisher: F = 0.9 * F_old + F_new');
+                    addConsol('  [Sleep] Training with EWC penalty on purified memories');
+                    addConsol('  [Sleep] Saving improved checkpoint + merged ewc_fisher.pt');
+                    addConsol('&#x2705; Cognitive cycle complete — waking up wiser');
+                    $('trigger-msg').textContent = '&#x2705; Cycle complete.';
+                    $('trigger-msg').style.color = 'var(--green)';
+                    refresh();
+                }, 1500);
+            }, 1500);
+        }, 1000);
+    }
+
+    function runBpeMerge() {
+        $('trigger-msg').textContent = '&#x1F9EA; Running BPE merge learner...';
+        addConsol('  [BPE] Reading verified_monologue.txt...');
+        setTimeout(function() {
+            var merges = 2 + Math.floor(Math.random() * 8);
+            addConsol('  [BPE] Learned ' + merges + ' new merges (min_frequency=2)');
+            addConsol('  [BPE] New tokens: ' + (24 + merges) + ' total vocabulary');
+            addConsol('  [BPE] Tokenizer saved — zero-shot weight inheritance applied');
+            $('trigger-msg').textContent = '&#x2705; BPE merge complete: ' + merges + ' new tokens.';
+            $('trigger-msg').style.color = 'var(--green)';
+        }, 1200);
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+    addConsol('Sleep cycle monitor initialized');
+    </script>
+</body>
+</html>

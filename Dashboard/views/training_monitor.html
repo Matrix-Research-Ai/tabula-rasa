@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Monitor</title>
+    <style>
+        :root { --bg: #111827; --panel: #1f2937; --border: #374151; --text: #f3f4f6; --accent: #3b82f6; --red: #ef4444; --green: #22c55e; --yellow: #facc15; --purple: #c084fc; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; max-width: 1000px; margin: 0 auto; }
+        .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 20px; }
+        .hdr h2 { font-size: 1.4rem; }
+        .hdr .st { text-align: right; font-size: 0.85rem; color: #9ca3af; }
+        .hdr .st span { color: white; font-family: monospace; font-size: 1.1rem; }
+        
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; align-items: center; gap: 14px; }
+        .card .ic { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+        .card h4 { font-size: 0.7rem; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.05em; }
+        .card .pv { font-size: 1.1rem; font-weight: bold; margin-top: 2px; }
+        .card small { font-size: 0.75rem; color: #6b7280; }
+        
+        .chart-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+        .chart-box .ch { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .chart-box .ch span { font-size: 0.75rem; color: #9ca3af; }
+        .chart-box .ch .lg { display: flex; gap: 14px; }
+        .chart-box .ch .lg em { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+        canvas { width: 100%; height: 220px; display: block; }
+        
+        .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .sbox { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+        .sbox .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; }
+        .sbox .v { font-size: 1.3rem; font-weight: bold; margin-top: 4px; }
+        
+        .log-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .log-box .lh { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+        .log-box .lh button { background: #374151; border: none; color: #d1d5db; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .log-box .lh button:hover { background: #4b5563; }
+        #debug-log { background: #000; padding: 12px 16px; font-family: monospace; font-size: 0.8rem; height: 180px; overflow-y: auto; color: #d1d5db; line-height: 1.6; }
+        #debug-log div { margin-bottom: 2px; }
+        #debug-log .i { color: #60a5fa; }
+        #debug-log .t { color: #fbbf24; }
+        #debug-log .e { color: #34d399; }
+        #debug-log .r { color: #ef4444; }
+        .tm-controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+        .tm-controls select { background:#0f172a; border:1px solid var(--border); color:white; padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer; }
+        .tm-btn { padding:5px 12px; border-radius:5px; border:none; font-weight:600; cursor:pointer; font-size:0.75rem; }
+        .tm-btn:disabled { opacity:0.4; cursor:not-allowed; }
+        .tm-btn-g { background:var(--green); color:white; }
+        .tm-btn-s { background:#374151; color:white; }
+        .tm-btn-d { background:var(--red); color:white; }
+        .tm-btn:hover:not(:disabled) { opacity:0.9; }
+    </style>
+</head>
+<body>
+    <div class="hdr">
+        <div><h2>&#x1F4C8; Real-Time Training Monitor</h2><div style="font-size:0.8rem;color:#9ca3af;margin-top:4px">Model: <code id="model-name" style="color:var(--accent)">-</code></div>
+            <div class="tm-controls">
+                <select id="tm-op-select" title="Operation">
+                    <option value="add">Addition (+)</option>
+                    <option value="sub">Subtraction (-)</option>
+                    <option value="mul">Multiplication (*)</option>
+                    <option value="div">Division (/)</option>
+                </select>
+                <label style="font-size:0.75rem;color:#9ca3af;display:flex;align-items:center;gap:3px;cursor:pointer;">
+                    <input type="checkbox" id="tm-quick"> Quick test
+                </label>
+                <label style="font-size:0.75rem;color:#9ca3af;display:flex;align-items:center;gap:3px;cursor:pointer;">
+                    <input type="checkbox" id="tm-resume"> Resume
+                </label>
+                <button class="tm-btn tm-btn-g" id="tm-start-btn" onclick="tmStart()">&#x25B6; Start</button>
+                <button class="tm-btn" style="background:#8b5cf6;color:white;" id="tm-auto-btn" onclick="tmAutoTrain()">&#x1F916; Auto Train</button>
+                <button class="tm-btn tm-btn-s" id="tm-pause-btn" onclick="tmPause()" style="display:none">&#x23F8; Pause</button>
+                <button class="tm-btn tm-btn-d" id="tm-stop-btn" onclick="tmStop()" style="display:none">&#x25A0; Stop</button>
+                <span id="tm-job-status" style="font-size:0.75rem;color:#9ca3af;"></span>
+            </div>
+        </div></div>
+        <div class="st">
+            <div>Step: <span id="tp-step">-</span></div>
+            <div>ETA: <span id="tp-eta">-</span></div>
+            <button onclick="clearStaleLog()" style="margin-top:6px;background:#374151;border:none;color:#d1d5db;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.7rem">&#x1F5D1; Clear stale log</button>
+        </div>
+    </div>
+
+    <div class="g2">
+        <div class="card">
+            <div class="ic" style="background:rgba(59,130,246,0.2);color:#60a5fa;">&#x1F4A1;</div>
+            <div><h4>Cognitive Phase</h4><div class="pv" id="phase-text">Starting...</div><small id="phase-desc">Waiting for training data</small></div>
+        </div>
+        <div class="card">
+            <div class="ic" style="background:rgba(168,85,247,0.2);color:#c084fc;">&#x1F4DA;</div>
+            <div><h4>BPE Vocabulary</h4><div class="pv"><span id="vocab-cur">24</span> &rarr; <span id="vocab-tgt" style="color:var(--green)">28</span></div><small id="vocab-new">"the", "re", "if", "then"</small></div>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <div class="ch">
+            <span>Loss &amp; Accuracy</span>
+            <span class="lg"><span><em style="background:var(--red)"></em>Loss</span><span><em style="background:var(--green)"></em>Accuracy</span></span>
+        </div>
+        <canvas id="chart"></canvas>
+    </div>
+
+    <div class="g4">
+        <div class="sbox"><div class="l">Loss</div><div class="v" id="tp-loss" style="color:var(--red)">-</div></div>
+        <div class="sbox"><div class="l">Accuracy</div><div class="v" id="tp-acc" style="color:var(--green)">-</div></div>
+        <div class="sbox"><div class="l">Speed</div><div class="v" id="tp-speed" style="color:var(--accent)">-</div></div>
+        <div class="sbox"><div class="l">Corrections</div><div class="v" id="tp-corrections" style="color:var(--yellow)">0</div></div>
+    </div>
+
+    <div class="log-box">
+        <div class="lh">
+            <span>&#x1F4BB; Live Training Log</span>
+            <span><button onclick="clearLog()">Clear</button><button onclick="copyLog()" style="margin-left:6px">Copy</button><label style="margin-left:10px;color:#9ca3af;font-size:0.75rem;cursor:pointer"><input type="checkbox" id="ascroll" checked> Auto-scroll</label></span>
+        </div>
+        <div id="debug-log"><div><span class="i">[INFO]</span> Monitor initialized.</div></div>
+    </div>
+
+    <script>
+    var API = 'http://localhost:8000';
+    var logLines = [];
+    var lastLoggedStep = -1;
+    var lastLoggedAcc = -1;
+    // Restore log from sessionStorage across page switches
+    (function() {
+        var saved = sessionStorage.getItem('tr_log');
+        if (saved) {
+            try { logLines = JSON.parse(saved); } catch(e) { logLines = []; }
+        }
+    })();
+    function saveLog() {
+        try { sessionStorage.setItem('tr_log', JSON.stringify(logLines.slice(-200))); } catch(e) {}
+    }
+    var chartData = { loss: [], acc: [], steps: [] };
+    var tmJobId = null;
+    (function() {
+        var saved = sessionStorage.getItem('tm_job');
+        if (saved) { try { tmJobId = JSON.parse(saved); } catch(e) { tmJobId = null; } }
+    })();
+
+    function updateTmUI(state) {
+        var s = document.getElementById('tm-start-btn');
+        var p = document.getElementById('tm-pause-btn');
+        var o = document.getElementById('tm-stop-btn');
+        var st = document.getElementById('tm-job-status');
+        if (state === 'idle') {
+            s.style.display = 'inline-flex'; s.disabled = false;
+            p.style.display = 'none'; o.style.display = 'none';
+            st.textContent = ''; tmJobId = null;
+            try { sessionStorage.removeItem('tm_job'); } catch(e) {}
+        } else if (state === 'training') {
+            s.style.display = 'none';
+            p.style.display = 'inline-flex'; p.innerHTML = '&#x23F8; Pause';
+            o.style.display = 'inline-flex';
+            st.textContent = 'Running'; st.style.color = 'var(--green)';
+        } else if (state === 'paused') {
+            p.innerHTML = '&#x25B6; Resume';
+            st.textContent = 'Paused'; st.style.color = 'var(--yellow)';
+        }
+    }
+
+    async function tmStart() {
+        var op = document.getElementById('tm-op-select').value;
+        var quick = document.getElementById('tm-quick').checked;
+        var resume = document.getElementById('tm-resume').checked;
+        document.getElementById('tm-job-status').textContent = 'Starting ' + op + '...';
+        try {
+            var r = await fetch(API + '/api/train/start', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({op: op, quick: quick, resume: resume})
+            });
+            var d = await r.json();
+            if (d.error) { addLog('Start error: ' + d.error, 'err'); return; }
+            if (!d.ok) { addLog('Start failed: ' + JSON.stringify(d), 'err'); return; }
+            try { sessionStorage.setItem('tm_op', op); } catch(e) {}
+            updateTmUI('training');
+            addLog('Started ' + op + ' training (PID: ' + d.pid + ')' + (quick ? ' [QUICK]' : '') + (resume ? ' [RESUME]' : ''), 'info');
+            // Start polling status
+            _startStatusPoll();
+        } catch(e) { addLog('Start error: ' + e.message, 'err'); }
+    }
+
+    async function tmAutoTrain() {
+        if (!confirm('Auto Train: tests all operations, finds the weakest, and trains it automatically.\n\nDefault: 50% target, 50K step budget.\n\nContinue?')) return;
+        var btn = document.getElementById('tm-auto-btn');
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+        document.getElementById('tm-job-status').textContent = 'Auto-train starting...';
+        try {
+            var r = await fetch(API + '/api/train/auto', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({target: 50, budget: 50000})
+            });
+            var d = await r.json();
+            if (d.error) { addLog('Auto-train error: ' + d.error, 'err'); btn.disabled = false; btn.innerHTML = '&#x1F916; Auto Train'; return; }
+            if (!d.ok) { addLog('Auto-train failed: ' + JSON.stringify(d), 'err'); btn.disabled = false; btn.innerHTML = '&#x1F916; Auto Train'; return; }
+            addLog('Auto-train started (PID: ' + d.pid + ') target=' + d.target + '% budget=' + d.budget, 'info');
+            btn.innerHTML = '&#x1F916; Auto-training...';
+            btn.style.background = '#6d28d9';
+            _startAutoStatusPoll();
+        } catch(e) {
+            addLog('Auto-train error: ' + e.message, 'err');
+            btn.disabled = false;
+            btn.innerHTML = '&#x1F916; Auto Train';
+        }
+    }
+
+    var _autoTimer = null;
+    function _startAutoStatusPoll() {
+        if (_autoTimer) clearInterval(_autoTimer);
+        _autoTimer = setInterval(async function() {
+            try {
+                var r = await fetch(API + '/api/train/auto/status');
+                var d = await r.json();
+                var btn = document.getElementById('tm-auto-btn');
+                var st = document.getElementById('tm-job-status');
+                if (d.running) {
+                    st.textContent = 'Auto-train running (' + d.uptime + 's)';
+                    if (d.history) {
+                        var fa = d.history.final_accuracies || {};
+                        var parts = [];
+                        for (var k in fa) parts.push(k + ': ' + fa[k] + '%');
+                        if (parts.length) st.textContent += ' | ' + parts.join(', ');
+                    }
+                } else {
+                    clearInterval(_autoTimer);
+                    _autoTimer = null;
+                    btn.disabled = false;
+                    btn.innerHTML = '&#x1F916; Auto Train';
+                    btn.style.background = '#8b5cf6';
+                    var msg = d.exit_code === 0 ? 'Auto-train complete!' : 'Auto-train exited (' + d.exit_code + ')';
+                    st.textContent = msg;
+                    addLog(msg, d.exit_code === 0 ? 'info' : 'err');
+                    if (d.history && d.history.final_accuracies) {
+                        var fa = d.history.final_accuracies;
+                        for (var k in fa) addLog('  ' + k + ': ' + fa[k] + '%', 'info');
+                    }
+                }
+            } catch(e) {}
+        }, 3000);
+    }
+
+    var _statusTimer = null;
+    function _startStatusPoll() {
+        if (_statusTimer) clearInterval(_statusTimer);
+        _statusTimer = setInterval(async function() {
+            try {
+                var r = await fetch(API + '/api/train/status');
+                var d = await r.json();
+                if (d.running) {
+                    document.getElementById('tm-job-status').textContent = d.op + ' running (' + d.uptime + 's)';
+                } else {
+                    // Training finished or was stopped
+                    document.getElementById('tm-job-status').textContent = d.exit_code === 0 ? 'Done!' : 'Stopped (exit ' + d.exit_code + ')';
+                    updateTmUI('idle');
+                    clearInterval(_statusTimer);
+                    _statusTimer = null;
+                }
+            } catch(e) {}
+        }, 3000);
+    }
+
+    async function tmPause() {
+        var btn = document.getElementById('tm-pause-btn');
+        var isPausing = btn.innerHTML.indexOf('Pause') >= 0;
+        var ep = isPausing ? '/api/train/pause' : '/api/train/resume';
+        fetch(API + ep, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({op: document.getElementById('tm-op-select').value})
+        }).then(function(r){return r.json()}).then(function(d){
+            updateTmUI(isPausing ? 'paused' : 'training');
+            addLog(isPausing ? 'Training stopped (use Resume to continue)' : 'Training resumed', 'info');
+            if (isPausing && _statusTimer) { clearInterval(_statusTimer); _statusTimer = null; }
+            if (!isPausing) { _startStatusPoll(); }
+        }).catch(function(e){addLog('Error: ' + e.message, 'err');});
+    }
+
+    async function tmStop() {
+        if (!confirm('Stop training? Progress is saved as checkpoint.')) return;
+        fetch(API + '/api/train/stop', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        }).then(function(r){return r.json()}).then(function(d){
+            updateTmUI('idle');
+            addLog('Training stopped: ' + (d.msg || 'done'), 'err');
+            if (_statusTimer) { clearInterval(_statusTimer); _statusTimer = null; }
+        }).catch(function(e){addLog('Error: ' + e.message, 'err');});
+    }
+
+    // Restore status on page load
+    (function() {
+        fetch(API + '/api/train/status').then(function(r){return r.json()}).then(function(d){
+            if (d && d.running) {
+                document.getElementById('tm-op-select').value = d.op || 'add';
+                updateTmUI('training');
+                _startStatusPoll();
+            }
+        }).catch(function(){});
+    })();
+
+    // === CANVAS CHART (zero dependencies) ===
+    function drawChart() {
+        var c = document.getElementById('chart');
+        if (!c) return;
+        var rect = c.getBoundingClientRect();
+        var dpr = window.devicePixelRatio || 1;
+        c.width = rect.width * dpr;
+        c.height = rect.height * dpr;
+        var ctx = c.getContext('2d');
+        ctx.scale(dpr, dpr);
+        var w = rect.width, h = rect.height, pad = 45, pw = w - 2*pad, ph = h - 2*pad;
+        ctx.clearRect(0, 0, w, h);
+
+        if (!chartData.steps || chartData.steps.length < 2) {
+            ctx.fillStyle = '#6b7280'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('Waiting for training data...', w/2, h/2);
+            return;
+        }
+
+        var steps = chartData.steps, loss = chartData.loss, acc = chartData.acc;
+        var minS = steps[0], maxS = steps[steps.length-1];
+        var minL = Math.min.apply(null, loss), maxL = Math.max.apply(null, loss);
+        var rng = maxL - minL || 1; minL -= 0.1*rng; if (minL < 0) minL = 0; maxL += 0.1*rng;
+
+        // Grid
+        ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+        for (var i = 0; i <= 4; i++) {
+            var y = pad + (ph/4)*i;
+            ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad+pw, y); ctx.stroke();
+            ctx.fillStyle = '#9ca3af'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText((maxL - (maxL-minL)/4*i).toFixed(2), pad-8, y+4);
+        }
+        // X labels
+        ctx.fillStyle = '#9ca3af'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+        for (var i = 0; i <= 4; i++) {
+            var s = Math.round(minS + (maxS-minS)/4*i);
+            ctx.fillText(s >= 1000 ? (s/1000).toFixed(1)+'K' : s, pad + (pw/4)*i, h-10);
+        }
+
+        function sx(s) { return pad + (s-minS)/(maxS-minS)*pw; }
+        function ly(l) { return pad + ph - (l-minL)/(maxL-minL)*ph; }
+
+        // Loss line
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.beginPath();
+        loss.forEach(function(v,i) { var x=sx(steps[i]),y=ly(v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+        ctx.stroke();
+        ctx.fillStyle = '#ef4444';
+        loss.forEach(function(v,i) { var x=sx(steps[i]),y=ly(v); ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill(); });
+
+        // Accuracy dots
+        if (acc.length) {
+            ctx.fillStyle = '#22c55e';
+            acc.forEach(function(v,i) {
+                var x = sx(steps[i]), y = pad + ph - (v/100)*ph;
+                ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#111827'; ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#22c55e';
+            });
+        }
+
+        // Latest values
+        var last = loss[loss.length-1];
+        ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(last.toFixed(4), pad+pw+6, ly(last)+5);
+        if (acc.length) {
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText(acc[acc.length-1]+'%', pad+pw+6, pad+ph-(acc[acc.length-1]/100)*ph+4);
+        }
+
+        // Legend
+        ctx.fillStyle = '#ef4444'; ctx.fillRect(w-145, 8, 10, 10);
+        ctx.fillStyle = '#f3f4f6'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('Loss', w-130, 17);
+        ctx.fillStyle = '#22c55e'; ctx.fillRect(w-75, 8, 10, 10);
+        ctx.fillStyle = '#f3f4f6'; ctx.fillText('Accuracy %', w-60, 17);
+    }
+
+    window.addEventListener('resize', drawChart);
+
+    // === PHASE ===
+    function getPhase(pct, step, loss, best, running) {
+        if (!running && step === 0) return { n: 'Not Started', d: 'The model has not started training.', c: '#6b7280' };
+        if (!running && step > 0) return { n: 'Complete!', d: 'Best accuracy: ' + best + '%.', c: '#22c55e' };
+        if (pct < 0.05) return { n: 'Phase 1: Learning Alphabet', d: 'Discovering symbols and tokens.', c: '#60a5fa' };
+        if (pct < 0.15) return { n: 'Phase 2: Pattern Finding', d: 'Noticing sequences and structure.', c: '#fbbf24' };
+        if (pct < 0.30) return { n: 'Phase 3: First Sparks', d: 'First correct answers emerging.', c: '#c084fc' };
+        if (pct < 0.50) return { n: 'Phase 4: Arithmetic Emerging', d: 'Loss dropping. Reliable answers appearing.', c: '#22c55e' };
+        if (pct < 0.75) return { n: 'Phase 5: Building Fluency', d: 'Most problems handled correctly.', c: '#22c55e' };
+        return { n: 'Phase 6: Mastery', d: 'Near-perfect accuracy.', c: '#60a5fa' };
+    }
+
+    // === LOG ===
+    function addLog(m, t) {
+        t = t || 'info';
+        var now = new Date().toLocaleTimeString();
+        var cls = t === 'train' ? 't' : t === 'eval' ? 'e' : t === 'err' ? 'r' : 'i';
+        var label = t === 'train' ? 'TRAIN' : t === 'eval' ? 'EVAL' : t === 'err' ? 'ERROR' : 'INFO';
+        var line = '<div><span style="color:#6b7280">[' + now + ']</span> <span class="' + cls + '">[' + label + ']</span> ' + m + '</div>';
+        logLines.push(line);
+        var el = document.getElementById('debug-log');
+        el.innerHTML = logLines.slice(-200).join('');
+        if (document.getElementById('ascroll').checked) el.scrollTop = el.scrollHeight;
+        saveLog();
+    }
+    function clearLog() { logLines = []; sessionStorage.removeItem('tr_log'); document.getElementById('debug-log').innerHTML = ''; addLog('Log cleared'); }
+    function copyLog() {
+        var t = logLines.map(function(l) { return l.replace(/<[^>]+>/g, ''); }).join('\n');
+        navigator.clipboard.writeText(t).then(function() { addLog('Copied to clipboard'); }).catch(function() {});
+    }
+
+    function fmtTime(s) {
+        if (!s || s < 0) return '-';
+        var h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+        return (h>0?h+'h ':'') + (m>0?m+'m ':'') + sec + 's';
+    }
+
+    // === CLEAR STALE LOG ===
+    async function clearStaleLog() {
+        try {
+            var r = await fetch(API + '/api/clear-training-log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            var d = await r.json();
+            if (d.status === 'cleared') {
+                addLog('Training log cleared', 'info');
+                // Reset displayed stats
+                document.getElementById('tp-step').textContent = '-';
+                document.getElementById('tp-eta').textContent = '-';
+                document.getElementById('tp-loss').textContent = '-';
+                document.getElementById('tp-acc').textContent = '-';
+                document.getElementById('tp-speed').textContent = '-';
+                document.getElementById('tp-corrections').textContent = '0';
+                document.getElementById('phase-text').textContent = 'Idle';
+                document.getElementById('phase-text').style.color = '#6b7280';
+                document.getElementById('phase-desc').textContent = 'No training data. Start training or clear stale log.';
+                chartData = { loss: [], acc: [], steps: [] };
+                drawChart();
+            }
+        } catch(e) {
+            addLog('Failed to clear log: ' + e.message, 'err');
+        }
+    }
+
+    // === POLL ===
+    async function pollTraining() {
+        try {
+            var r = await fetch(API + '/training-progress');
+            var d = await r.json();
+            if (d.error) { addLog('No training data', 'info'); return; }
+
+            document.getElementById('tp-step').textContent = d.step + ' / ' + d.max_steps;
+            document.getElementById('tp-loss').textContent = d.loss !== null ? d.loss.toFixed(4) : '-';
+            document.getElementById('tp-acc').textContent = d.best_acc !== null ? d.best_acc + '%' : '-';
+            document.getElementById('tp-speed').textContent = d.steps_per_sec ? d.steps_per_sec.toFixed(1)+' st/s' : '-';
+            document.getElementById('tp-eta').textContent = d.eta_seconds ? fmtTime(d.eta_seconds) : '-';
+
+            var pct = d.max_steps > 0 ? d.step / d.max_steps : 0;
+            var phase = getPhase(pct, d.step, d.loss, d.best_acc, d.running);
+            document.getElementById('phase-text').textContent = phase.n;
+            document.getElementById('phase-text').style.color = phase.c;
+            document.getElementById('phase-desc').textContent = phase.d;
+
+            if (d.running && d.loss !== null && d.step !== lastLoggedStep) {
+                lastLoggedStep = d.step;
+                addLog('Step ' + d.step + ' | Loss: ' + d.loss.toFixed(4), 'train');
+            }
+            if (d.latest_acc !== null && d.best_acc !== null) {
+                if (d.latest_acc !== lastLoggedAcc) {
+                    lastLoggedAcc = d.latest_acc;
+                    addLog('Accuracy: ' + d.latest_acc + '% (Best: ' + d.best_acc + '%)', 'eval');
+                }
+            }
+
+            // Update chart data
+            if (d.loss_series && d.loss_series.length > 1) {
+                chartData.steps = d.loss_series.map(function(p){return p.step});
+                chartData.loss = d.loss_series.map(function(p){return p.loss});
+                if (d.acc_series && d.acc_series.length) {
+                    var map = {}; d.acc_series.forEach(function(p){map[p.step]=p.acc});
+                    chartData.acc = chartData.steps.map(function(s){return map[s]!==undefined?map[s]:null});
+                }
+                drawChart();
+            }
+        } catch(e) { addLog('Fetch failed: ' + e.message, 'err'); }
+    }
+
+    async function pollServer() {
+        try {
+            var r = await fetch(API + '/health');
+            var d = await r.json();
+            document.getElementById('model-name').textContent = d.model || '-';
+            document.getElementById('tp-corrections').textContent = d.corrections || 0;
+        } catch(e) {}
+    }
+
+    addLog('Monitor initialized', 'info');
+    pollServer();
+    pollTraining();
+    setInterval(pollTraining, 5000);
+    setInterval(pollServer, 15000);
+    </script>
+</body>
+</html>

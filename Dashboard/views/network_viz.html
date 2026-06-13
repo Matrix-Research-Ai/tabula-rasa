@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Network 3D Visualization</title>
+<style>
+:root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; --purple: #a855f7; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; overflow-x: hidden; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+h3 { font-size: 0.95rem; margin-bottom: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+.badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+.bg { background: rgba(34,197,94,0.15); color: var(--green); } .by { background: rgba(234,179,8,0.15); color: var(--orange); }
+.bp { background: rgba(168,85,247,0.15); color: var(--purple); } .bd { background: rgba(107,114,128,0.15); color: var(--muted); }
+.row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.row span:first-child { color: var(--muted); } .row span:last-child { font-weight: 600; } .row:last-child { border-bottom: none; }
+canvas { width: 100%; height: 600px; display: block; border-radius: 8px; cursor: grab; }
+canvas:active { cursor: grabbing; }
+select, button { background: #0f172a; border: 1px solid var(--border); color: white; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+button:hover { background: #1e293b; }
+.stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+.stat-box .v { font-size: 1.3rem; font-weight: bold; }
+.stat-box .l { font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-top: 2px; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.toolbar label { font-size: 0.8rem; color: var(--muted); }
+.toolbar input[type=range] { width: 100px; background: #0f172a; accent-color: var(--accent); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.75rem; margin: 8px 0; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+pre { background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.75rem; overflow-x: auto; color: #d1d5db; line-height: 1.5; }
+.ascii-box { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 16px; position: relative; }
+.ascii-box .copy-btn { position: absolute; top: 8px; right: 8px; background: #374151; border: none; color: #d1d5db; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
+.ascii-box .copy-btn:hover { background: #4b5563; }
+.ascii-box pre { border: none; padding: 0; margin: 0; background: transparent; font-size: 0.65rem; line-height: 1.5; }
+.tip { font-size: 0.75rem; color: var(--muted); margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+<h2>&#x1F9E9; Neural Network 3D Visualization &mdash; Transformer Architecture</h2>
+
+<div class="g2">
+  <div class="card">
+    <h3>&#x1F916; Select Specialist</h3>
+    <select id="spec-select" onchange="loadFromConfig()">
+      <option value="default">Default Config (d=128, L=4, h=4)</option>
+      <option value="live">Loaded Model</option>
+    </select>
+    <div id="spec-info" style="margin-top:12px;">
+      <div class="row"><span>Parameters</span><span id="si-params">1,060,992</span></div>
+      <div class="row"><span>d_model</span><span id="si-dmodel">128</span></div>
+      <div class="row"><span>Layers</span><span id="si-layers">4</span></div>
+      <div class="row"><span>Heads</span><span id="si-heads">4</span></div>
+      <div class="row"><span>d_ff</span><span id="si-dff">512</span></div>
+      <div class="row"><span>Seq Length</span><span id="si-seq">32</span></div>
+      <div class="row"><span>Activation</span><span id="si-act">SwiGLU</span></div>
+      <div class="row"><span>Norm</span><span id="si-norm">RMSNorm</span></div>
+      <div class="row"><span>Pos Encoding</span><span id="si-pos">RoPE</span></div>
+      <div class="row"><span>Vocab Size</span><span id="si-vocab">24</span></div>
+      <div class="row"><span>Weight Init</span><span id="si-init">Normal(0,0.02)</span></div>
+      <div class="row"><span>Dropout</span><span id="si-drop">0.1</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>&#x1F4CA; Model Stats</h3>
+    <div class="g4">
+      <div class="stat-box"><div class="v" id="ms-params" style="color:var(--accent);">-</div><div class="l">Parameters</div></div>
+      <div class="stat-box"><div class="v" id="ms-layers" style="color:var(--green);">-</div><div class="l">Layers</div></div>
+      <div class="stat-box"><div class="v" id="ms-heads" style="color:var(--orange);">-</div><div class="l">Heads</div></div>
+      <div class="stat-box"><div class="v" id="ms-emb" style="color:var(--purple);">-</div><div class="l">Embed Dim</div></div>
+    </div>
+    <div style="margin-top:12px;">
+      <div class="row"><span>Memory Usage (inference)</span><span id="ms-memory" style="color:var(--green);">~5 MB</span></div>
+      <div class="row"><span>Forward FLOPs per token</span><span id="ms-flops">~0.5M</span></div>
+      <div class="row"><span>Context Window</span><span id="ms-context">32 tokens</span></div>
+      <div class="row"><span>Output Head</span><span id="ms-head-type">LM Head (untied)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3D Visualization -->
+<div class="card">
+  <h3>&#x1F9E9; 3D Architecture Viewer</h3>
+  <div class="toolbar">
+    <label>Zoom</label>
+    <input type="range" min="50" max="300" value="140" id="zoom-slider" oninput="scene.zoom=this.value/100; draw3D()">
+    <label>Speed</label>
+    <input type="range" min="0" max="20" value="5" id="speed-slider" oninput="scene.rotSpeed=this.value/100; if(this.value==0)scene.autoRotate=false;else scene.autoRotate=true">
+    <button onclick="scene.autoRotate=!scene.autoRotate;draw3D()">&#x1F504; Rotate</button>
+    <button onclick="resetView()">&#x21BA; Reset</button>
+  </div>
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span> Input</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#22c55e;"></span> Embedding</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> Layers</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span> Output</span>
+    <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.15);border:1px solid #6b7280;"></span> Weights</span>
+  </div>
+  <canvas id="viz-canvas"></canvas>
+  <div class="tip">&#x1F5B2; Drag to orbit &bull; Scroll to zoom &bull; Hover nodes for details</div>
+</div>
+
+<!-- Architecture Flow Diagram (2D) -->
+<div class="card">
+  <h3>&#x1F9E9; Transformer Architecture Flow</h3>
+  <canvas id="arch-canvas"></canvas>
+</div>
+
+<div class="card" style="margin-top:-4px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h3 style="margin:0;color:var(--muted);font-size:0.85rem;">&#x1F4DD; ASCII Architecture</h3>
+    <button class="copy-btn" onclick="copyAscii()">&#x1F4CB; Copy</button>
+  </div>
+  <div class="ascii-box">
+    <pre id="ascii-art">Loading...</pre>
+  </div>
+</div>
+
+<div class="g2">
+  <div class="card">
+    <h3>&#x1F9EE; Attention Mechanism</h3>
+    <div class="row"><span>Type</span><span>Causal (masked) self-attention</span></div>
+    <div class="row"><span>Heads</span><span id="attn-heads">4</span></div>
+    <div class="row"><span>Head dim</span><span id="attn-head-dim">32 (128/4)</span></div>
+    <div class="row"><span>QKV projections</span><span id="attn-qkv">3 &times; 128 &times; 128 = 49,152</span></div>
+    <div class="row"><span>Output projection</span><span id="attn-out">128 &times; 128 = 16,384</span></div>
+    <div class="row"><span>Score computation</span><span id="attn-scores">4 &times; 32 &times; 32 = 4,096</span></div>
+    <div class="row"><span>Position encoding</span><span id="attn-pos">RoPE (rotary)</span></div>
+  </div>
+  <div class="card">
+    <h3>&#x2697;&#xFE0F; Feed-Forward Network</h3>
+    <div class="row"><span>Hidden dim</span><span id="ff-dff">512</span></div>
+    <div class="row"><span>Activation</span><span id="ff-act">SwiGLU (SiLU &times; sigmoid)</span></div>
+    <div class="row"><span>Gate projection</span><span id="ff-gate">128 &rarr; 512</span></div>
+    <div class="row"><span>Up projection</span><span id="ff-up">128 &rarr; 512</span></div>
+    <div class="row"><span>Down projection</span><span id="ff-down">512 &rarr; 128</span></div>
+    <div class="row"><span>Total FFN params</span><span id="ff-params">3 &times; 128 &times; 512 = 196,608</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>&#x1F4CA; Parameter Distribution</h3>
+  <div style="display:flex; gap:2px; align-items:stretch; height:40px; margin-bottom:12px;" id="param-bar">
+    <div style="background:#3b82f6; color:white; display:flex; align-items:center; justify-content:center; font-size:0.6rem; border-radius:4px 0 0 4px;" id="pbar-embed">Embed</div>
+    <div style="background:#22c55e; color:white; display:flex; align-items:center; justify-content:center; font-size:0.6rem;" id="pbar-attn">Attn</div>
+    <div style="background:#f59e0b; color:white; display:flex; align-items:center; justify-content:center; font-size:0.6rem;" id="pbar-ffn">FFN</div>
+    <div style="background:#a855f7; color:white; display:flex; align-items:center; justify-content:center; font-size:0.6rem; border-radius:0 4px 4px 0;" id="pbar-head">Head</div>
+  </div>
+  <div class="g4" id="param-details">
+    <div class="stat-box"><div class="v" id="pd-embed" style="color:var(--accent);font-size:1rem;">-</div><div class="l">Embedding</div></div>
+    <div class="stat-box"><div class="v" id="pd-attn" style="color:var(--green);font-size:1rem;">-</div><div class="l">Attention</div></div>
+    <div class="stat-box"><div class="v" id="pd-ffn" style="color:var(--orange);font-size:1rem;">-</div><div class="l">Feed-Forward</div></div>
+    <div class="stat-box"><div class="v" id="pd-head" style="color:var(--purple);font-size:1rem;">-</div><div class="l">LM Head</div></div>
+  </div>
+</div>
+
+<script>
+var API = 'http://localhost:8000';
+var canvas = document.getElementById('viz-canvas');
+var ctx = canvas.getContext('2d');
+
+// ─── 3D Scene State ─────────────────────────────────────
+var scene = {
+  rotX: 0.4, rotY: 0.6, rotZ: 0,
+  zoom: 1.4, autoRotate: true, rotSpeed: 0.005,
+  mouseDown: false, lastMX: 0, lastMY: 0,
+  hoverNode: null, animId: null
+};
+
+// ─── 3D Math ────────────────────────────────────────────
+function ROTX(a) { var c=Math.cos(a),s=Math.sin(a); return [1,0,0,0,c,-s,0,s,c]; }
+function ROTY(a) { var c=Math.cos(a),s=Math.sin(a); return [c,0,s,0,1,0,-s,0,c]; }
+function ROTZ(a) { var c=Math.cos(a),s=Math.sin(a); return [c,-s,0,s,c,0,0,0,1]; }
+function mmul(m,v) { return [m[0]*v[0]+m[1]*v[1]+m[2]*v[2], m[3]*v[0]+m[4]*v[1]+m[5]*v[2], m[6]*v[0]+m[7]*v[1]+m[8]*v[2]]; }
+function v3(x,y,z) { return [x,y,z]; }
+
+function project(p, w, h) {
+  var d = 4, f = d / (d + p[2]);
+  return {x: p[0]*f*scene.zoom*120 + w/2, y: -p[1]*f*scene.zoom*120 + h/2, s: f};
+}
+
+// ─── Build 3D Network Graph ────────────────────────────
+function buildNetwork(cfg) {
+  var nodes = [], edges = [];
+  var d = cfg.d, L = cfg.L, V = cfg.vocab;
+  var nInput = Math.min(V, 16), inputNodes = [];
+  for (var i = 0; i < nInput; i++) {
+    var a = (i/nInput)*Math.PI*2;
+    inputNodes.push({pos:v3(Math.cos(a)*0.35, Math.sin(a)*0.35, -3.5), label:'Token '+i, type:'input', val:Math.sin(i*1.3)*0.5+0.5});
+  }
+  nodes = nodes.concat(inputNodes);
+
+  var nEmb = Math.min(d, 24), embNodes = [];
+  for (var i = 0; i < nEmb; i++) {
+    var a = (i/nEmb)*Math.PI*2;
+    embNodes.push({pos:v3(Math.cos(a)*0.3, Math.sin(a)*0.3, -2.2), label:'Emb '+i, type:'embed', val:Math.sin(i*0.7)*0.5+0.5});
+  }
+  nodes = nodes.concat(embNodes);
+  for (var i = 0; i < inputNodes.length; i++)
+    for (var j = 0; j < Math.min(embNodes.length, 4); j++)
+      edges.push({from:inputNodes[i], to:embNodes[j], type:'weight', val:Math.random()*0.4+0.2});
+
+  var layerRings = [];
+  for (var l = 0; l < L; l++) {
+    var z = -0.5 + l*0.7;
+    var nN = Math.min(d, 20), ring = [];
+    for (var i = 0; i < nN; i++) {
+      var a = (i/nN)*Math.PI*2;
+      ring.push({pos:v3(Math.cos(a)*0.45, Math.sin(a)*0.45, z), label:'L'+(l+1)+'_'+i, type:'layer'+(l+1), val:Math.sin(i*0.7+l*0.5)*0.5+0.5});
+    }
+    layerRings.push(ring);
+    nodes = nodes.concat(ring);
+    var prev = l===0 ? embNodes : layerRings[l-1];
+    for (var i = 0; i < Math.min(prev.length, ring.length, 6); i++)
+      edges.push({from:prev[i], to:ring[i], type:'weight', val:Math.sin(i*0.3+l*0.7)*0.3+0.5});
+    for (var i = 0; i < Math.min(ring.length, 3); i++)
+      for (var j = i+1; j < Math.min(ring.length, i+3); j++)
+        edges.push({from:ring[i], to:ring[j], type:'attn', val:0.12});
+  }
+
+  var nOut = Math.min(V, 16), outNodes = [];
+  for (var i = 0; i < nOut; i++) {
+    var a = (i/nOut)*Math.PI*2;
+    outNodes.push({pos:v3(Math.cos(a)*0.35, Math.sin(a)*0.35, 4.0), label:'Out '+i, type:'output', val:Math.random()*0.7+0.3});
+  }
+  nodes = nodes.concat(outNodes);
+  var last = layerRings.length>0 ? layerRings[layerRings.length-1] : embNodes;
+  for (var i = 0; i < Math.min(last.length, outNodes.length, 6); i++)
+    edges.push({from:last[i], to:outNodes[i], type:'weight', val:Math.random()*0.3+0.4});
+
+  return {nodes:nodes, edges:edges};
+}
+
+var network = null, cfgCache = null;
+
+function fmt(n) { return n.toLocaleString(); }
+
+function calcParams(cfg) {
+  var d=cfg.d, L=cfg.L, ff=cfg.ff, V=cfg.vocab;
+  var embed=V*d, attn=L*4*d*d, ffn=L*3*d*ff, head=V*d, total=embed+attn+ffn+head, norm=L*2*d;
+  return {total:total+norm, embed:embed, attn:attn, ffn:ffn, head:head, norm:norm, mem:(total+norm)*4/1024/1024};
+}
+
+function resetView() {
+  scene.rotX=0.4; scene.rotY=0.6; scene.zoom=1.4; scene.autoRotate=true;
+  document.getElementById('zoom-slider').value=140; document.getElementById('speed-slider').value=5;
+  scene.rotSpeed=0.005; draw3D();
+}
+
+function getTC(t) {
+  if(t==='input') return '#3b82f6'; if(t==='embed') return '#22c55e';
+  if(t.startsWith('layer')) return '#f59e0b'; if(t==='output') return '#a855f7';
+  return '#6b7280';
+}
+function getTL(t) {
+  if(t==='input') return 'Input Tokens'; if(t==='embed') return 'Embedding';
+  if(t.startsWith('layer')) return 'Layer '+t.replace('layer','')+' (Hidden)'; if(t==='output') return 'Output Logits';
+  return t;
+}
+
+// ─── Draw 3D ────────────────────────────────────────────
+function draw3D() {
+  if (!network) return;
+  var rect = canvas.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
+  ctx.scale(dpr,dpr);
+  var W = rect.width, H = rect.height;
+
+  if (scene.autoRotate) scene.rotY += scene.rotSpeed;
+
+  ctx.fillStyle = '#0a0f1e'; ctx.fillRect(0,0,W,H);
+
+  var rx = ROTX(scene.rotX), ry = ROTY(scene.rotY), rz = ROTZ(scene.rotZ);
+  function rot(p) { return mmul(rx, mmul(ry, mmul(rz, p))); }
+
+  var pNodes = network.nodes.map(function(n){
+    var rp = rot(n.pos); var p = project(rp,W,H); return {x:p.x,y:p.y,s:p.s,node:n,rp:rp};
+  }).sort(function(a,b){return a.rp[2]-b.rp[2];});
+
+  // Edges
+  for (var i = 0; i < network.edges.length; i++) {
+    var e = network.edges[i], fP=null, tP=null;
+    for (var j = 0; j < pNodes.length; j++) {
+      if (pNodes[j].node === e.from) fP = pNodes[j];
+      if (pNodes[j].node === e.to) tP = pNodes[j];
+    }
+    if (!fP||!tP) continue;
+    ctx.globalAlpha = e.val*0.3+0.1;
+    ctx.strokeStyle = e.type==='attn' ? '#a855f7' : '#6b7280';
+    ctx.lineWidth = e.val*1.5+0.5;
+    ctx.beginPath(); ctx.moveTo(fP.x,fP.y); ctx.lineTo(tP.x,tP.y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Labels
+  function lbl(text, z, c) {
+    var p = project(rot([0,0.8,z]),W,H);
+    ctx.fillStyle = c; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(text,p.x,p.y);
+  }
+  lbl('INPUT',-3.5,'#3b82f6'); lbl('EMBED',-2.2,'#22c55e');
+  lbl('LAYERS',0.0,'#f59e0b'); lbl('OUTPUT',4.0,'#a855f7');
+
+  // Nodes
+  var hovered = null;
+  for (var i = 0; i < pNodes.length; i++) {
+    var pn = pNodes[i], n = pn.node, c = getTC(n.type);
+    var r = (6+n.val*6)*pn.s, a = 0.4+0.6*pn.s;
+    var grad = ctx.createRadialGradient(pn.x,pn.y,0,pn.x,pn.y,r*3);
+    grad.addColorStop(0,c+'40'); grad.addColorStop(1,'transparent');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(pn.x,pn.y,r*3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = c; ctx.globalAlpha = a;
+    ctx.beginPath(); ctx.arc(pn.x,pn.y,r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ffffff30'; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.arc(pn.x,pn.y,r,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (scene.hoverNode && scene.hoverNode.node===n) {
+      hovered=n; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(pn.x,pn.y,r+4,0,Math.PI*2); ctx.stroke();
+    }
+    if (n.type.startsWith('layer') && n.label.endsWith('_0')) {
+      ctx.fillStyle='#94a3b880'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('Layer '+n.type.replace('layer',''), pn.x, pn.y+r+12);
+    }
+  }
+
+  // Tooltip
+  if (hovered) {
+    ctx.fillStyle='#1e293be0'; ctx.strokeStyle='#334155'; ctx.lineWidth=1;
+    var tx=16, ty=H-90, tw=220, th=70, rr=6;
+    ctx.beginPath(); ctx.moveTo(tx+rr,ty); ctx.lineTo(tx+tw-rr,ty);
+    ctx.quadraticCurveTo(tx+tw,ty,tx+tw,ty+rr);
+    ctx.lineTo(tx+tw,ty+th-rr); ctx.quadraticCurveTo(tx+tw,ty+th,tx+tw-rr,ty+th);
+    ctx.lineTo(tx+rr,ty+th); ctx.quadraticCurveTo(tx,ty+th,tx,ty+th-rr);
+    ctx.lineTo(tx,ty+rr); ctx.quadraticCurveTo(tx,ty,tx+rr,ty); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#f1f5f9'; ctx.font='bold 12px sans-serif'; ctx.textAlign='left';
+    ctx.fillText(hovered.label,tx+12,ty+20);
+    ctx.fillStyle='#94a3b8'; ctx.font='11px sans-serif';
+    ctx.fillText('Type: '+getTL(hovered.type),tx+12,ty+40);
+    ctx.fillText('Value: '+(hovered.val!==undefined?hovered.val.toFixed(3):'-'),tx+12,ty+58);
+  }
+
+  if (scene.autoRotate) scene.animId = requestAnimationFrame(draw3D);
+}
+
+// ─── Mouse ──────────────────────────────────────────────
+canvas.addEventListener('mousedown',function(e){
+  scene.mouseDown=true; var r=canvas.getBoundingClientRect();
+  scene.lastMX=e.clientX-r.left; scene.lastMY=e.clientY-r.top;
+  scene.autoRotate=false; if(scene.animId) cancelAnimationFrame(scene.animId);
+});
+canvas.addEventListener('mousemove',function(e){
+  var r=canvas.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+  if(scene.mouseDown){
+    scene.rotY+=(mx-scene.lastMX)*0.01; scene.rotX+=(my-scene.lastMY)*0.01;
+    scene.rotX=Math.max(-1.5,Math.min(1.5,scene.rotX));
+    scene.lastMX=mx; scene.lastMY=my; draw3D();
+  } else if(network){
+    var rx=ROTX(scene.rotX), ry=ROTY(scene.rotY), rz=ROTZ(scene.rotZ);
+    function rot(p){return mmul(rx,mmul(ry,mmul(rz,p)));}
+    var found=null;
+    for(var i=0;i<network.nodes.length;i++){
+      var rp=rot(network.nodes[i].pos), p=project(rp,canvas.width/dpr,canvas.height/dpr);
+      if(Math.sqrt((mx-p.x)*(mx-p.x)+(my-p.y)*(my-p.y))<10){found=network.nodes[i];break;}
+    }
+    scene.hoverNode=found?{node:found}:null; draw3D();
+  }
+});
+canvas.addEventListener('mouseup',function(){scene.mouseDown=false; if(document.getElementById('speed-slider').value!=0){scene.autoRotate=true;draw3D();}});
+canvas.addEventListener('mouseleave',function(){scene.mouseDown=false;scene.hoverNode=null;draw3D();});
+canvas.addEventListener('wheel',function(e){e.preventDefault();scene.zoom*=e.deltaY>0?0.9:1.1;scene.zoom=Math.max(0.3,Math.min(5,scene.zoom));document.getElementById('zoom-slider').value=scene.zoom*100;draw3D();});
+window.addEventListener('resize',function(){draw3D();drawArchitecture();});
+
+// ─── 2D Architecture Flow ──────────────────────────────
+function drawArchitecture() {
+  var c = document.getElementById('arch-canvas');
+  var rect = c.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  c.width = rect.width*dpr; c.height = rect.height*dpr;
+  var actx = c.getContext('2d');
+  actx.scale(dpr,dpr);
+  var w = rect.width, h = rect.height;
+  actx.clearRect(0,0,w,h);
+
+  var cfg = cfgCache || {d:128,L:4,h:4,ff:512,seq:32,act:'swiglu',vocab:24};
+  var d=cfg.d, L=cfg.L, hd=cfg.h, ff=cfg.ff, V=cfg.vocab;
+  var cx=w/2, boxW=100, boxH=32, gap=48, startY=30;
+
+  var blocks = [
+    {label:'Token Input', sub:'1..'+V+' tokens', color:'#3b82f6'},
+    {label:'Embedding', sub:d+'d', color:'#3b82f6'},
+    {label:'RoPE', sub:'Rotary Pos', color:'#6366f1'}
+  ];
+  for (var i=0;i<L;i++) blocks.push({label:'Layer '+(i+1), sub:'Attn('+hd+'h) + FFN('+ff+')', color:'#22c55e'});
+  blocks.push({label:'RMSNorm', sub:'Final norm', color:'#f59e0b'});
+  blocks.push({label:'LM Head', sub:V+' vocab', color:'#a855f7'});
+  blocks.push({label:'Output', sub:'Next token', color:'#ef4444'});
+
+  var totalH = blocks.length*(boxH+gap)-gap+startY;
+  var scale = totalH > h ? (h-20)/totalH : 1;
+
+  for (var i=0;i<blocks.length;i++) {
+    var y = startY + i*(boxH*scale+gap*scale);
+    var x = cx - boxW/2*scale;
+
+    if (i>0) {
+      var prevY = startY + (i-1)*(boxH*scale+gap*scale);
+      actx.strokeStyle = '#4b5563'; actx.lineWidth=2;
+      actx.beginPath(); actx.moveTo(cx,prevY+boxH*scale); actx.lineTo(cx,y); actx.stroke();
+      actx.fillStyle='#4b5563';
+      actx.beginPath(); actx.moveTo(cx,y); actx.lineTo(cx-5,y-8); actx.lineTo(cx+5,y-8); actx.closePath(); actx.fill();
+    }
+
+    var bx=x, by=y, bw=boxW*scale, bh=boxH*scale, rr=6*scale;
+    actx.fillStyle = blocks[i].color+'20';
+    actx.strokeStyle = blocks[i].color; actx.lineWidth=1.5;
+    actx.beginPath(); actx.moveTo(bx+rr,by); actx.lineTo(bx+bw-rr,by);
+    actx.quadraticCurveTo(bx+bw,by,bx+bw,by+rr);
+    actx.lineTo(bx+bw,by+bh-rr); actx.quadraticCurveTo(bx+bw,by+bh,bx+bw-rr,by+bh);
+    actx.lineTo(bx+rr,by+bh); actx.quadraticCurveTo(bx,by+bh,bx,by+bh-rr);
+    actx.lineTo(bx,by+rr); actx.quadraticCurveTo(bx,by,bx+rr,by); actx.closePath();
+    actx.fill(); actx.stroke();
+
+    actx.fillStyle='#f1f5f9'; actx.font='bold '+(11*scale)+'px sans-serif'; actx.textAlign='center';
+    actx.fillText(blocks[i].label,cx,y+13*scale);
+    actx.fillStyle='#94a3b8'; actx.font=(9*scale)+'px sans-serif';
+    actx.fillText(blocks[i].sub,cx,y+25*scale);
+  }
+
+  var iy = startY+10;
+  actx.fillStyle='#3b82f6'; actx.font='9px sans-serif'; actx.textAlign='left';
+  actx.fillText('Vocab: '+V+' tokens', cx+boxW/2*scale+12, iy);
+  actx.fillStyle='#6366f1'; actx.fillText('d_model: '+d, cx+boxW/2*scale+12, iy+18);
+  actx.fillStyle='#22c55e'; actx.fillText(L+' layers', cx+boxW/2*scale+12, iy+36);
+  actx.fillStyle='#f59e0b'; actx.fillText('Norm: RMSNorm', cx+boxW/2*scale+12, iy+54);
+  actx.fillStyle='#a855f7'; actx.fillText('Output: '+V+' x '+d, cx+boxW/2*scale+12, iy+72);
+}
+
+// ─── ASCII Art ──────────────────────────────────────────
+function generateAscii(cfg) {
+  var d=cfg.d, L=cfg.L, hd=cfg.h, ff=cfg.ff, V=cfg.vocab;
+  var p = calcParams(cfg);
+  var bar='='.repeat(48);
+  var a='';
+  a+=bar+'\n  TRANSFORMER ARCHITECTURE  (Tabula Rasa v1.3)\n'+bar+'\n\n';
+  a+='  Config:  d_model='+d+'  L='+L+'  h='+hd+'  d_ff='+ff+'\n';
+  a+='  Vocab:   '+V+' tokens  |  Seq: '+cfg.seq+'  |  Params: '+p.total.toLocaleString()+'\n';
+  a+='  Act:     '+cfg.act+'  |  Norm: rmsnorm  |  Pos: rope\n\n';
+  a+='  '+'_'.repeat(36)+'\n |  TOKEN INPUT  ('+V+' vocab)  |\n |'+'_'.repeat(36)+'|\n          |\n          v\n';
+  a+='  '+'_'.repeat(36)+'\n |  EMBEDDING  ('+d+'d)  |  '+p.embed.toLocaleString()+' params\n |'+'_'.repeat(36)+'|\n          |\n          v\n';
+  a+='  '+'_'.repeat(36)+'\n |  RoPE (Rotary Position)     |\n |'+'_'.repeat(36)+'|\n';
+  for(var i=0;i<L;i++){
+    a+='          |\n          v\n  '+'_'.repeat(36)+'\n |  LAYER '+(i+1)+'                     |\n';
+    a+=' |    Attn: '+hd+' heads x '+(d/hd)+'d     |  '+(p.attn/L).toLocaleString()+' params\n';
+    a+=' |    FFN: '+d+'->'+ff+'->'+d+' ('+cfg.act+')  |  '+(p.ffn/L).toLocaleString()+' params\n |'+'_'.repeat(36)+'|\n';
+  }
+  a+='          |\n          v\n  '+'_'.repeat(36)+'\n |  RMSNorm (rmsnorm)           |\n |'+'_'.repeat(36)+'|\n          |\n          v\n';
+  a+='  '+'_'.repeat(36)+'\n |  LM HEAD  ('+d+' -> '+V+')      |  '+p.head.toLocaleString()+' params\n |'+'_'.repeat(36)+'|\n          |\n          v\n';
+  a+='  '+'_'.repeat(36)+'\n |  OUTPUT (next token)          |\n |'+'_'.repeat(36)+'|\n\n';
+  a+=bar+'\n  Total params: '+p.total.toLocaleString()+'\n';
+  a+='  Embed: '+p.embed.toLocaleString()+' ('+(p.embed/p.total*100).toFixed(1)+'%)  ';
+  a+='Attn: '+p.attn.toLocaleString()+' ('+(p.attn/p.total*100).toFixed(1)+'%)  ';
+  a+='FFN: '+p.ffn.toLocaleString()+' ('+(p.ffn/p.total*100).toFixed(1)+'%)  ';
+  a+='Head: '+p.head.toLocaleString()+' ('+(p.head/p.total*100).toFixed(1)+'%)\n'+bar+'\n';
+  return a;
+}
+
+function copyAscii() {
+  var el=document.getElementById('ascii-art');
+  navigator.clipboard.writeText(el.textContent||el.innerText).then(function(){
+    var btn=document.querySelector('.copy-btn'); btn.textContent='&#x2705; Copied!';
+    setTimeout(function(){btn.innerHTML='&#x1F4CB; Copy';},2000);
+  }).catch(function(){});
+}
+
+// ─── Config Loading ─────────────────────────────────────
+function updateStats(cfg) {
+  var p=calcParams(cfg);
+  document.getElementById('ascii-art').textContent=generateAscii(cfg);
+  document.getElementById('ms-params').textContent=fmt(p.total);
+  document.getElementById('ms-layers').textContent=cfg.L;
+  document.getElementById('ms-heads').textContent=cfg.h;
+  document.getElementById('ms-emb').textContent=cfg.d;
+  document.getElementById('ms-memory').textContent='~'+p.mem.toFixed(2)+' MB';
+  var flops=2*cfg.L*(4*cfg.d*cfg.d+3*cfg.d*cfg.ff+cfg.seq*cfg.d*cfg.h);
+  document.getElementById('ms-flops').textContent=fmt(flops)+' FLOPs';
+  document.getElementById('ms-context').textContent=cfg.seq+' tokens';
+  document.getElementById('ms-head-type').textContent='Untied';
+  ['embed','attn','ffn','head'].forEach(function(k,i){
+    document.getElementById(['pd-embed','pd-attn','pd-ffn','pd-head'][i]).textContent=fmt(p[k]);
+  });
+  var pcts=[p.embed/p.total*100, p.attn/p.total*100, p.ffn/p.total*100, p.head/p.total*100];
+  ['pbar-embed','pbar-attn','pbar-ffn','pbar-head'].forEach(function(id,i){
+    var el=document.getElementById(id); el.style.width=Math.max(pcts[i],0.5)+'%';
+    el.textContent=pcts[i]>8?pcts[i].toFixed(0)+'%':'';
+  });
+  ['si-params','si-dmodel','si-layers','si-heads','si-dff','si-seq','si-act','si-norm','si-pos','si-vocab','si-init','si-drop'].forEach(function(id){
+    var m={siParams:p.total, siDmodel:cfg.d, siLayers:cfg.L, siHeads:cfg.h, siDff:cfg.ff, siSeq:cfg.seq, siAct:cfg.act, siNorm:'RMSNorm', siPos:'RoPE', siVocab:cfg.vocab, siInit:'Normal(0,0.02)', siDrop:cfg.drop};
+    var key=id.replace(/-/g,'').replace('si','si').toLowerCase();
+    for(var k in m){ if(id.replace(/-/g,'').toLowerCase()===k.toLowerCase()){document.getElementById(id).textContent=m[k];} }
+  });
+  // Quick fill for si-*
+  var info = {si_params:fmt(p.total), si_dmodel:cfg.d, si_layers:cfg.L, si_heads:cfg.h, si_dff:cfg.ff, si_seq:cfg.seq, si_act:cfg.act, si_norm:'RMSNorm', si_pos:'RoPE', si_vocab:cfg.vocab, si_init:'Normal(0,0.02)', si_drop:cfg.drop};
+  for (var k in info) {
+    var el = document.getElementById(k);
+    if (el) el.textContent = info[k];
+  }
+  // Attention details
+  document.getElementById('attn-heads').textContent=cfg.h;
+  document.getElementById('attn-head-dim').textContent=(cfg.d/cfg.h)+' ('+cfg.d+'/'+cfg.h+')';
+  document.getElementById('attn-qkv').textContent='3 x '+cfg.d+' x '+cfg.d+' = '+fmt(3*cfg.d*cfg.d);
+  document.getElementById('attn-out').textContent=cfg.d+' x '+cfg.d+' = '+fmt(cfg.d*cfg.d);
+  document.getElementById('attn-scores').textContent=cfg.h+' x '+cfg.seq+' x '+cfg.seq+' = '+fmt(cfg.h*cfg.seq*cfg.seq);
+  document.getElementById('attn-pos').textContent='RoPE (rotary)';
+  document.getElementById('ff-dff').textContent=cfg.ff;
+  document.getElementById('ff-act').textContent=cfg.act;
+  document.getElementById('ff-gate').textContent=cfg.d+' -> '+cfg.ff;
+  document.getElementById('ff-up').textContent=cfg.d+' -> '+cfg.ff;
+  document.getElementById('ff-down').textContent=cfg.ff+' -> '+cfg.d;
+  document.getElementById('ff-params').textContent='3 x '+cfg.d+' x '+cfg.ff+' = '+fmt(3*cfg.d*cfg.ff);
+}
+
+function loadFromConfig() {
+  var sel = document.getElementById('spec-select').value;
+  if (sel==='default') { applyConfig({d:128,L:4,h:4,ff:512,seq:32,act:'swiglu',vocab:24}); }
+  else {
+    fetch(API+'/api/config').then(function(r){return r.json()}).then(function(d){
+      applyConfig({d:d.d_model||128,L:d.n_layers||4,h:d.n_heads||4,ff:d.d_ff||512,seq:d.max_seq_len||32,act:d.activation||'swiglu',vocab:d._vocab_size||24});
+    }).catch(function(){applyConfig({d:128,L:4,h:4,ff:512,seq:32,act:'swiglu',vocab:24});});
+  }
+}
+
+function applyConfig(cfg) {
+  cfgCache=cfg;
+  network=buildNetwork(cfg);
+  updateStats(cfg);
+  drawArchitecture(cfg);
+  draw3D();
+}
+
+// Init
+loadFromConfig();
+window.addEventListener('resize',function(){drawArchitecture();draw3D();});
+</script>
+</body>
+</html>

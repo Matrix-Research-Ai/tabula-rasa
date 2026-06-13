@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Viewer</title>
+    <script src="../core/dashboard.js"></script>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --accent: #3b82f6; --green: #22c55e; --orange: #f59e0b; --red: #ef4444; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 32px; }
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; font-size: 1.4rem; }
+        .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+        .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+        .card h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .stat { text-align: center; }
+        .stat .v { font-size: 2rem; font-weight: bold; }
+        .stat .l { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+        .stat .s { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+        .search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .search-row input { flex: 1; background: var(--panel); border: 1px solid var(--border); color: white; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none; }
+        .search-row input:focus { border-color: var(--accent); }
+        .search-row button { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { text-align: left; padding: 10px 14px; background: #0f172a; color: var(--muted); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: #d1d5db; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+        .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
+        .badge-dim { background: rgba(148,163,184,0.15); color: var(--muted); }
+        .badge-blue { background: rgba(59,130,246,0.15); color: var(--accent); }
+        .empty { text-align: center; padding: 40px; color: var(--muted); }
+        .tag { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+        .btn-sm { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+        .btn-sm:hover { border-color: var(--accent); color: var(--text); }
+        pre.code { background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; color: #d1d5db; }
+    </style>
+</head>
+<body>
+    <h2>&#x1F9E0; Memory Viewer</h2>
+
+    <div class="g2">
+        <div class="card stat">
+            <div class="v" id="mem-count" style="color:var(--accent);">-</div>
+            <div class="l">Session Memory Entries</div>
+            <div class="s">Total stored corrections</div>
+        </div>
+        <div class="card stat">
+            <div class="v" id="corr-count" style="color:var(--green);">-</div>
+            <div class="l">Corrections (server)</div>
+            <div class="s">From POST /correct endpoint</div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+        <h3>&#x1F50D; Search &amp; Filter</h3>
+        <div class="search-row">
+            <input type="text" id="search-input" placeholder="Search memories (question, answer, skill)..." onkeydown="if(event.key==='Enter')searchMem()">
+            <button onclick="searchMem()">Search</button>
+            <button onclick="clearSearch()" style="background:var(--panel);border:1px solid var(--border);color:var(--muted)">Clear</button>
+            <button onclick="refreshMem()" style="background:var(--panel);border:1px solid var(--border);color:var(--muted)">&#x21BB; Refresh</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0">&#x1F4CB; Memory Entries</h3>
+            <span id="result-count" style="font-size:0.8rem;color:var(--muted)"></span>
+        </div>
+        <div style="overflow-x:auto">
+            <table>
+                <thead><tr><th>Timestamp</th><th>Question</th><th>Correct</th><th>Wrong</th><th>Skill</th><th>Notes</th><th></th></tr></thead>
+                <tbody id="mem-tbody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+        <h3>&#x1F4DD; Raw JSON</h3>
+        <pre class="code" id="raw-json">(loading...)</pre>
+    </div>
+
+    <script>
+    var allData = [];
+
+    async function refreshMem() {
+        // Try session_memory.json direct fetch first (port 8000)
+        try {
+            var r = await fetch(API + '/session_memory.json');
+            allData = await r.json();
+            if (!Array.isArray(allData)) allData = [];
+        } catch(e) {
+            // Fallback: try tabula_rasa port 8002
+            try {
+                var r = await fetch(API2 + '/memory');
+                var d = await r.json();
+                allData = d.memories || d.corrections || [];
+                if (!Array.isArray(allData)) allData = [];
+            } catch(e2) { allData = []; }
+        }
+        renderTable(allData);
+        $('mem-count').textContent = allData.length;
+
+        // Also get correction count from health
+        try {
+            var r = await fetch(API + '/health');
+            var d = await r.json();
+            $('corr-count').textContent = d.corrections || 0;
+        } catch(e) {}
+    }
+
+    function renderTable(data) {
+        var tbody = $('mem-tbody');
+        $('result-count').textContent = data.length + ' entries';
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty">No memory entries found.</td></tr>';
+            $('raw-json').textContent = '[]';
+            return;
+        }
+        var html = '';
+        data.slice().reverse().forEach(function(item) {
+            var ts = item.timestamp || item.date || item.time || '-';
+            if (typeof ts === 'number') ts = new Date(ts * 1000).toLocaleString();
+            var q = item.question || item.prompt || item.expr || '-';
+            var c = item.correct || item.answer || item.right || '-';
+            var w = item.wrong || '-';
+            var skill = item.skill || '-';
+            var notes = item.notes || item.message || '';
+            html += '<tr>' +
+                '<td style="font-size:0.75rem;color:var(--muted)">' + esc(ts) + '</td>' +
+                '<td style="font-weight:600">' + esc(q) + '</td>' +
+                '<td style="color:var(--green)">' + esc(c) + '</td>' +
+                '<td style="color:var(--red)">' + esc(w) + '</td>' +
+                '<td><span class="tag">' + esc(skill) + '</span></td>' +
+                '<td style="font-size:0.75rem;color:var(--muted)">' + esc(notes) + '</td>' +
+                '<td><button class="btn-sm" onclick="viewDetail(' + data.indexOf(item) + ')">&#x1F50D;</button></td>' +
+                '</tr>';
+        });
+        tbody.innerHTML = html;
+        $('raw-json').textContent = JSON.stringify(data, null, 2);
+    }
+
+    function searchMem() {
+        var q = $('search-input').value.toLowerCase().trim();
+        if (!q) { renderTable(allData); return; }
+        var filtered = allData.filter(function(item) {
+            var text = JSON.stringify(item).toLowerCase();
+            return text.indexOf(q) !== -1;
+        });
+        renderTable(filtered);
+    }
+
+    function clearSearch() {
+        $('search-input').value = '';
+        renderTable(allData);
+    }
+
+    function viewDetail(idx) {
+        var item = allData[idx];
+        if (!item) return;
+        $('raw-json').textContent = JSON.stringify(item, null, 2);
+    }
+
+    refreshMem();
+    setInterval(refreshMem, 15000);
+    </script>
+</body>
+</html>

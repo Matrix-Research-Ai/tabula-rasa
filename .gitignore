@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Training artifacts
+checkpoints/
+specialists/
+data/
+exports/
+memory/
+self_train/
+scripts/
+
+# Logs
+*.log
+startup_debug.log
+
+# Config backups
+config.py.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Project specific
+auto_train_history.json
+experiments.json
+registry.json
+training.log
+error.log
+
+# Large zip files
+*.zip
+
+# Temporary
+ablation_batch.log
