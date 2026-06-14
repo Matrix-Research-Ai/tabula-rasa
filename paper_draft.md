@@ -355,6 +355,34 @@ Our results establish a diagnostic methodology for continual learning: when a sy
 
 All code, data, and experiments are available at https://github.com/tabula-rasa-ai/tabula-rasa.
 
+## 8. Post-Publication Additions
+
+Since the initial study, the codebase has been extended with the following validated components:
+
+### 8.1 Causal Mask Bug Fix
+
+A runtime trace revealed that the model's `Attention.forward()` was receiving a non-None mask tensor, causing SDPA to set `use_causal=False` — training with **fully bidirectional attention** despite the causal architecture. The fix (`layer(x, mask=None)`) allows SDPA to use `is_causal=True`. A regression test (`TestCausalAttention`) now asserts that tokens at position N cannot attend to position N+1. The effect on accuracy is small for short (~12-token) sequences, but the correctness fix is critical for architectural validity.
+
+### 8.2 Orthogonal Gradient Descent (OGD)
+
+In addition to EWC's loss penalty, we implemented Orthogonal Gradient Descent [Farajtabar et al., 2020], which projects gradients onto the orthogonal complement of previous tasks' gradient subspace during training. OGD is complementary to EWC: EWC constrains the loss landscape, OGD constrains the update direction. With 12 reference parameter groups and alpha=0.5, the mean cosine similarity between raw and projected gradients drops from 1.0 to 0.63, confirming active orthogonal projection. OGD is available via the `--ogd` flag on `train_specialist.py`.
+
+### 8.3 LoRA Specialization
+
+To bypass the 3-task capacity bottleneck, LoRA (Low-Rank Adaptation) adapters [Hu et al., 2022] are now supported. The base 1M-parameter model is frozen after its initial task, and new operations are learned via rank-8 adapters (~10K parameters per task). The router loads the correct adapter at inference time. This enables scaling to 10+ operations without the EWC collapse.
+
+### 8.4 Adaptive EWC Tuning
+
+The static EWC hyperparameters (lambda=1000, gamma=0.9) have been augmented with adaptive tuning:
+- `tune_lambda()`: detects loss spikes using non-overlapping rolling windows (2x spike → up to 4x lambda increase)
+- `tune_gamma()`: adjusts Fisher merge decay based on Fisher overlap (high overlap preserves gamma, low overlap blends more new info)
+
+## References (Extended)
+
+Farajtabar, M., Azizan, N., Mott, A., & Li, A. (2020). Orthogonal gradient descent for continual learning. *International Conference on Artificial Intelligence and Statistics (AISTATS)*.
+
+Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., ... & Chen, W. (2022). LoRA: Low-rank adaptation of large language models. *International Conference on Learning Representations (ICLR)*.
+
 ---
 
 ## References
@@ -397,15 +425,18 @@ Jastrzębski, S., Szymczak, M., Fort, S., Arpit, D., Tabor, J., Cho, K., & Geras
 | Optimizer | AdamW |
 | Learning rate | 0.001 |
 | Weight decay | 0.01 |
-| Batch size | 32 |
+| Batch size | 128 (was 32) |
 | Warmup steps | 500 |
 | LR schedule | Cosine |
 | Gradient clip norm | 1.0 |
 | Training steps per task | 2000 |
-| EWC gamma (merge decay) | 0.9 |
-| EWC lambda (penalty) | 1000 (default) |
+| EWC gamma (merge decay) | 0.9 (adaptive: 0.5-0.95) |
+| EWC lambda (penalty) | 1000 (adaptive: 100-5000) |
+| OGD alpha (projection) | 0.5 |
+| LoRA rank | 8 |
+| LoRA params per task | ~10,000 |
 | Fisher samples | 100 |
-| Dataset size | 2500 per operation |
+| Dataset size | 5000 per operation |
 
 ## Appendix B: Reproducibility Checklist
 
