@@ -53,7 +53,7 @@ class Config:
     # ═══════════════════════════════════════════════════════════
     # TRAINING HYPERPARAMETERS
     # ═══════════════════════════════════════════════════════════
-    batch_size: int = 32             # Smaller for curriculum + CPU
+    batch_size: int = 128            # CPU throughput is flat above 64; fewer epochs
     learning_rate: float = 0.001
     weight_decay: float = 0.01
     warmup_steps: int = 500

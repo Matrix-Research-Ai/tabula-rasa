@@ -434,11 +434,12 @@ class MathTransformer(nn.Module):
         device = input_ids.device
 
         x = self.token_embedding(input_ids)
-        mask = self._causal_mask(seq_len, device)
-
+        # Pass mask=None so Attention uses is_causal=True via SDPA.
+        # Passing a non-None mask sets use_causal=False in Attention.forward(),
+        # which disables causal masking entirely during training.
         kv_caches: list[tuple[torch.Tensor, torch.Tensor]] = []
         for layer in self.layers:
-            x, layer_kv = layer(x, mask)
+            x, layer_kv = layer(x, mask=None)
             kv_caches.append(layer_kv)
 
         x = self.norm(x)
