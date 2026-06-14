@@ -95,6 +95,73 @@ Online Elastic Weight Consolidation (EWC) prevents catastrophic forgetting when
 the model trains on sequential tasks. The hippocampus stores high-surprise
 experiences for replay during sleep cycles.
 
+In addition to EWC, three complementary continual learning methods are available:
+
+| Method | Mechanism | When to Use | File |
+|--------|-----------|-------------|------|
+| **OGD** | Gradient projection orthogonal to past tasks | Overlapping parameter usage | `egefalos/ogd.py` |
+| **LwF** | Knowledge distillation from frozen teacher | Scarce labels, abundant unlabeled data | `egefalos/lwf_gem.py` |
+| **GEM** | Episodic memory + gradient projection | Small exemplars per task available | `egefalos/lwf_gem.py` |
+
+### Architecture Overview
+
+```mermaid
+graph TD
+    Prompt["Input Prompt"] --> Router["Router (egefalos/router.py)"]
+    Router -->|math| MathSpec["Math Specialist"]
+    Router -->|text| TextSpec["Text Specialist"]
+    Router -->|logic| LogicSpec["Logic Specialist"]
+    Router -->|code| CodeSpec["Code AlphaZero"]
+
+    MathSpec --> Training["train_specialist.py"]
+    Training --> Curriculum["Curriculum Learning"]
+    Curriculum -->|Phase 1: 1-digit| EWC["Online EWC"]
+    EWC -->|Phase 2: 2-digit| Hippocampus["Hippocampus (SQLite)"]
+    Hippocampus --> SleepCycle["Sleep Cycle Daemon"]
+
+    Training --> Socratic["Socratic Self-Improvement"]
+    Socratic --> Critique["5-Round Critique Loop"]
+    Critique --> Correction["Correction Dataset"]
+    Correction --> Retrain["Fine-tune on Corrections"]
+
+    subgraph Inference
+        Router --> Chat["Interactive Chat"]
+        Router --> API["REST API (port 8000)"]
+    end
+
+    subgraph Dashboard
+        API --> Dashboard["Web Dashboard"]
+        Dashboard --> TrainingMonitor["Training Monitor"]
+        Dashboard --> FisherHeatmap["Fisher Heatmap"]
+        Dashboard --> AttentionFlow["Attention Flow"]
+        Dashboard --> ExperimentComparator["Experiment Comparator"]
+    end
+```
+
+### Socratic Critique Loop
+
+```mermaid
+graph LR
+    A["Generate Trace"] --> B["Deterministic Critic"]
+    B -->|correct| C["+1 Reward"]
+    B -->|wrong| D["Construct Hint"]
+    D --> E["Model Revises"]
+    E --> B
+    C --> F["Store Correction Pair"]
+    F --> G["Train on Correction"]
+    G --> H["Self-Improvement Complete"]
+```
+
+### Cognitive Clock Cycle
+
+```mermaid
+graph TD
+    A["Awake Phase: Train Specialist"] --> B["Socratic Phase: Self-Critique"]
+    B --> C["Pythagorean Phase: Verify + Log"]
+    C --> D["Sleep Phase: EWC Consolidation"]
+    D --> A
+```
+
 ### Phase 3 (In Development)
 
 - **Socratic Engine:** Self-critique loop — model generates a trace, a

@@ -614,6 +614,16 @@ def train_specialist(
 
     # ── Model ──
     model = MathTransformer(cfg).to(device)
+    use_compile = args.compile or os.environ.get("TABULA_RASA_COMPILE", "").lower() in ("1", "true")
+    if use_compile:
+        if device.type == "cpu":
+            print("  [!] torch.compile is not recommended on CPU — no speedup expected.")
+        else:
+            try:
+                model = torch.compile(model, mode="reduce-overhead")
+                print(f"  torch.compile: enabled (mode=reduce-overhead)")
+            except Exception as e:
+                print(f"  [!] torch.compile failed: {e}")
 
     # ── LoRA (low-rank adaptation) ──
     lora_layers = None
@@ -899,6 +909,18 @@ def train_specialist(
                 log_file.write(eval_line + "\n")
                 log_file.flush()
 
+                # ── W&B logging (optional) ──
+                try:
+                    wandb.log({
+                        "step": global_step,
+                        "eval_accuracy": acc,
+                        "best_accuracy": best_acc,
+                        "training_loss": last_micro_loss,
+                        "learning_rate": current_lr,
+                    })
+                except (NameError, AttributeError):
+                    pass
+
                 if acc > best_acc:
                     best_acc = acc
                     loss_streak_count = 0
@@ -1141,6 +1163,15 @@ Examples:
         "--amp", action="store_true", help="Enable mixed precision (AMP) training (requires CUDA)"
     )
     parser.add_argument(
+        "--compile", action="store_true", help="Enable torch.compile model optimization (GPU only)"
+    )
+    parser.add_argument(
+        "--wandb", action="store_true", help="Enable Weights & Biases experiment tracking"
+    )
+    parser.add_argument(
+        "--wandb-project", type=str, default="tabula-rasa", help="W&B project name"
+    )
+    parser.add_argument(
         "--grad-accum",
         type=int,
         default=0,
@@ -1218,6 +1249,25 @@ Examples:
         print(f"       python3 train_specialist.py add --quick      (smoke test)")
         print(f"       python3 train_specialist.py add --resume     (continue)")
         sys.exit(1)
+
+    # ── Optional Weights & Biases ──
+    if args.wandb:
+        try:
+            import wandb
+            wandb.init(
+                project=args.wandb_project,
+                config={
+                    "op": args.op, "steps": args.steps, "batch": args.batch,
+                    "lr": args.lr, "amp": args.amp, "compile": args.compile,
+                    "reversed": not args.no_reversed,
+                    "loss_masking": not args.no_loss_mask,
+                    "socratic": args.socratic,
+                    "ewc": args.ewc, "deep": args.deep, "lora": args.lora,
+                },
+            )
+            print(f"  W&B: enabled (project={args.wandb_project})")
+        except ImportError:
+            print("  [!] W&B requested but not installed. pip install wandb")
 
     train_specialist(
         args.op,
