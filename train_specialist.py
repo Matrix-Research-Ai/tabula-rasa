@@ -12,6 +12,7 @@ Usage:
     python3 train_specialist.py add --steps 5000    # Custom step count
     python3 train_specialist.py add --log-level DEBUG  # Debug logging
 """
+from __future__ import annotations
 import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 import sys, time, math, json, random, urllib.request, signal
 import logging
