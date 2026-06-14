@@ -143,12 +143,19 @@ class Config:
 
     @property
     def device(self) -> str:
-        """Return the compute device string ('cuda' or 'cpu').
+        """Return the compute device string.
+
+        Priority: cuda > mps (Apple Silicon) > cpu.
 
         Returns:
-            'cuda' if a CUDA-capable GPU is available, otherwise 'cpu'.
+            'cuda' if CUDA GPU available, 'mps' if Apple Silicon,
+            otherwise 'cpu'.
         """
         import torch
-        return 'cuda' if torch.cuda.is_available() else 'cpu'
+        if torch.cuda.is_available():
+            return 'cuda'
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            return 'mps'
+        return 'cpu'
 
     vocab_size: int | None = None  # Set after tokenizer is built

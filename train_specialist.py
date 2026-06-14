@@ -427,6 +427,10 @@ def train_specialist(op, steps=0, batch_size=0, lr=0,
         device = torch.device('cuda')
         device_name = torch.cuda.get_device_name(0)
         print(f'  Device: CUDA ({device_name})')
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        device = torch.device('mps')
+        device_name = 'Apple Silicon (MPS)'
+        print(f'  Device: MPS ({device_name})')
     else:
         device = torch.device('cpu')
         device_name = 'CPU'
@@ -442,8 +446,8 @@ def train_specialist(op, steps=0, batch_size=0, lr=0,
     use_amp_enabled = cfg.use_amp and device.type == 'cuda'
     if use_amp_enabled:
         print(f'  AMP: enabled (mixed precision)')
-    elif cfg.use_amp and device.type != 'cuda':
-        print(f'  AMP: disabled (requires CUDA device)')
+    elif cfg.use_amp and device.type not in ('cuda',):
+        print(f'  AMP: disabled (requires CUDA; MPS does not support amp.GradScaler)')
 
     # ── Gradient accumulation ──
     if gradient_accumulation_steps > 0:
