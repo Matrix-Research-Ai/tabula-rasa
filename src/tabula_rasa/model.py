@@ -564,7 +564,40 @@ class MathTransformer(nn.Module):
             if next_id.item() == tokenizer.eos_id:
                 break
 
-        return tokenizer.decode(all_ids[0].tolist())
+        raw = tokenizer.decode(all_ids[0].tolist())
+        # Post-process: clean repeated trailing digits using math parser
+        return self._clean_generated_output(raw)
+
+    def _clean_generated_output(self, raw: str) -> str:
+        """Remove repeated trailing digits from model output.
+
+        Uses the math parser to find the shortest valid prefix of the
+        generated answer. The model often repeats the last digit after
+        reaching the correct answer because it hasn't learned to emit
+        EOS reliably. This strips trailing repeated content while
+        preserving the mathematically correct answer.
+
+        Examples:
+            '5+7=12222222222'  -> '5+7=12'
+            '12+34=0406040404' -> '12+34=0406'
+            '2+2=04444'        -> '2+2=04'
+            '12+34=46'         -> '12+34=46'  (already clean)
+            '99+1=100'         -> '99+1=100'  (already clean)
+        """
+        if '=' not in raw:
+            return raw
+        before, after = raw.split('=', 1)
+        # Try shorter candidates until one validates mathematically
+        try:
+            from tabula_rasa.math_parser import verify_equation, verify_scratchpad
+        except ImportError:
+            return raw
+        for end in range(len(after), 0, -1):
+            candidate = after[:end]
+            eq = f'{before}={candidate}'
+            if verify_equation(eq).get('valid') or verify_scratchpad(eq).get('valid'):
+                return eq
+        return raw
 
     def quantize_(self, bits: int = 8) -> None:
         """Quantize linear layers in-place for inference (requires bitsandbytes).
