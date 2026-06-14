@@ -1274,7 +1274,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/ewc-stress-test":
             self._json(run_ewc_stress_test())
         elif path == "/api/mcts-tree":
-            from urllib.parse import urlparse, parse_qs
+            from urllib.parse import parse_qs
             params = parse_qs(urlparse(self.path).query)
             problem = params.get("problem", ["12+34"])[0]
             sims = int(params.get("sims", [32])[0])
