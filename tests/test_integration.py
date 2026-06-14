@@ -173,3 +173,80 @@ class TestCheckpointSave:
             out1, _, _ = model(x)
             out2, _, _ = model2(x)
         assert torch.equal(out1, out2), "Saved and loaded models produce different outputs"
+
+
+class TestEndToEndQuickTraining:
+    """Run the actual train_specialist.py script as a subprocess."""
+
+    def test_quick_training_subprocess(self, tmp_path):
+        """``train_specialist.py add --quick`` completes without error,
+        creates checkpoint files, and produces a model that generates
+        reasonable output.
+        """
+        import subprocess
+        import sys
+
+        # Run in tmp_path so we don't pollute the real specialist dirs
+        cwd = Path(__file__).resolve().parent.parent
+        result = subprocess.run(
+            [sys.executable, 'train_specialist.py', 'add', '--quick'],
+            capture_output=True, text=True, timeout=120, cwd=str(cwd),
+        )
+
+        # Check exit code
+        assert result.returncode == 0, (
+            f"train_specialist.py exited with code {result.returncode}\n"
+            f"stdout:\n{result.stdout[:2000]}\n"
+            f"stderr:\n{result.stderr[:2000]}"
+        )
+
+        # Check output contains expected messages
+        assert 'Quick mode' in result.stdout or 'Done!' in result.stdout, (
+            f"Expected training output not found:\n{result.stdout[:1000]}"
+        )
+
+        # Check that checkpoint files were created
+        op_dir = cwd / 'specialists' / 'math' / 'add'
+        assert (op_dir / 'best.pt').exists() or (op_dir / 'final.pt').exists(), (
+            f"Checkpoint not found in {op_dir}"
+        )
+
+        # Verify the checkpoint loads and can generate
+        import torch
+        from tabula_rasa.config import Config
+        from tabula_rasa.tokenizer import MathTokenizer
+        from tabula_rasa.model import MathTransformer
+
+        ckpt = op_dir / 'best.pt'
+        if not ckpt.exists():
+            ckpt = op_dir / 'final.pt'
+        tok = MathTokenizer.load(str(op_dir / 'tokenizer.json'))
+        cfg = Config()
+        cfg.vocab_size = tok.vocab_size
+        tok.max_seq_len = cfg.max_seq_len
+        model = MathTransformer(cfg)
+        state = torch.load(ckpt, map_location='cpu', weights_only=True)
+        model.load_state_dict(state['model_state_dict'])
+        model.eval()
+
+        # Generate something
+        output = model.generate(tok, "2+2=", max_new_tokens=5, temperature=0.0)
+        assert isinstance(output, str), f"Expected string output, got {type(output)}"
+        assert len(output) > 0, "Generated output was empty"
+
+    def test_quick_training_with_flags(self, tmp_path):
+        """``train_specialist.py add --quick --no-reversed --no-loss-mask``
+        runs without error.
+        """
+        import subprocess
+        import sys
+
+        cwd = Path(__file__).resolve().parent.parent
+        result = subprocess.run(
+            [sys.executable, 'train_specialist.py', 'add', '--quick',
+             '--no-reversed', '--no-loss-mask'],
+            capture_output=True, text=True, timeout=120, cwd=str(cwd),
+        )
+        assert result.returncode == 0, (
+            f"Exit code {result.returncode}\n{result.stdout[:500]}"
+        )

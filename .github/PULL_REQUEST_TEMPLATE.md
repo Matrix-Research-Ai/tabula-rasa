@@ -1,28 +1,25 @@
-## Summary
-<!-- One-sentence summary of what this PR does -->
+## Description
+Briefly describe what this PR does.
 
-## Related issue
-<!-- Closes #123, addresses #456, etc. -->
+## Related Issue
+Closes #(issue number)
 
-## Type of change
+## Type of Change
 - [ ] Bug fix
 - [ ] New feature
-- [ ] Experiment / ablation
-- [ ] Documentation
-- [ ] Infrastructure (CI, Docker, packaging)
-- [ ] Refactor (no behavior change)
+- [ ] Performance improvement
+- [ ] Documentation update
+- [ ] CI / infrastructure
 
-## Testing
+## How Has This Been Tested?
 - [ ] `pytest tests/ -q` passes
-- [ ] New tests added for changed code
-- [ ] Quick training smoke test: `python train_specialist.py add --quick`
+- [ ] Manual verification (describe steps)
 
 ## Checklist
-- [ ] Code follows project style (4-space indent, type hints, docstrings)
-- [ ] RESULTS.md updated if claims or metrics changed
-- [ ] README / ROADMAP updated if user-facing features changed
-- [ ] New experiment scripts saved under `experiments/`
-- [ ] JSON results output saved for reproducibility
+- [ ] My code follows the existing style
+- [ ] I have added tests for my changes (if applicable)
+- [ ] I have updated documentation (if applicable)
+- [ ] I have checked for any breaking changes
 
-## Additional context
-<!-- Anything reviewers should know -->
+## Additional Notes
+Any context reviewers should know.
