@@ -129,12 +129,12 @@ graph TD
         Router --> API["REST API (port 8000)"]
     end
 
-    subgraph Dashboard
-        API --> Dashboard["Web Dashboard"]
-        Dashboard --> TrainingMonitor["Training Monitor"]
-        Dashboard --> FisherHeatmap["Fisher Heatmap"]
-        Dashboard --> AttentionFlow["Attention Flow"]
-        Dashboard --> ExperimentComparator["Experiment Comparator"]
+    subgraph DashboardUI["Dashboard UI"]
+        API --> WebDash["Web Dashboard"]
+        WebDash --> TrainingMonitor["Training Monitor"]
+        WebDash --> FisherHeatmap["Fisher Heatmap"]
+        WebDash --> AttentionFlow["Attention Flow"]
+        WebDash --> ExperimentComparator["Experiment Comparator"]
     end
 ```
 
