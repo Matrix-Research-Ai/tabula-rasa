@@ -597,6 +597,7 @@ def train_specialist(
     ewc_lambda=1000.0,
     ewc_gamma=0.9,
     use_expert_ewc=False,
+    use_fisher_archive=False,
     use_amp=False,
     gradient_accumulation_steps=0,
     use_lora=False,
@@ -793,7 +794,7 @@ def train_specialist(
     # ── EWC (continual learning) ──
     ewc = None
     if use_ewc:
-        ewc = OnlineEWC(model, gamma=ewc_gamma)
+        ewc = OnlineEWC(model, gamma=ewc_gamma, use_archive=use_fisher_archive)
         ewc_path = op_dir / "ewc_fisher.pt"
         if ewc_path.exists():
             ewc.load(ewc_path)
@@ -1374,6 +1375,7 @@ Examples:
   python3 train_specialist.py add --steps 5000 --batch 64 --lr 0.0005
   python3 train_specialist.py add --socratic    # Socratic self-improvement
   python3 train_specialist.py add --dialectic   # Generator vs Critic debate
+  python3 train_specialist.py add --ewc --fisher-archive  # Per-task Fisher archive (fixes 3-task collapse)
         """,
     )
     parser.add_argument("op", nargs="?", default="add", help="Operation: add|sub|mul|div|all")
@@ -1412,6 +1414,11 @@ Examples:
     )
     parser.add_argument(
         "--expert-ewc", action="store_true", help="Per-expert Fisher tracking for MoE (use with --moe)"
+    )
+    parser.add_argument(
+        "--fisher-archive", action="store_true",
+        help="Store per-task Fishers as unmerged archive instead of merged decay. "
+             "Fixes 3-task norm shrinkage (see Ablation 4)."
     )
     parser.add_argument(
         "--amp", action="store_true", help="Enable mixed precision (AMP) training (requires CUDA)"
@@ -1499,6 +1506,7 @@ Examples:
                 ewc_lambda=args.ewc_lambda,
                 ewc_gamma=args.ewc_gamma,
                 use_expert_ewc=args.expert_ewc,
+                use_fisher_archive=args.fisher_archive,
                 use_amp=args.amp,
                 gradient_accumulation_steps=args.grad_accum,
                 use_lora=args.lora,
@@ -1535,7 +1543,7 @@ Examples:
                     "cot": args.cot,
                     "socratic": args.socratic,
                     "dialectic": args.dialectic,
-                    "ewc": args.ewc, "expert_ewc": args.expert_ewc, "deep": args.deep, "lora": args.lora,
+                    "ewc": args.ewc, "expert_ewc": args.expert_ewc, "fisher_archive": args.fisher_archive, "deep": args.deep, "lora": args.lora,
                 },
             )
             print(f"  W&B: enabled (project={args.wandb_project})")
@@ -1562,6 +1570,7 @@ Examples:
         print(f"  MoE:     {'ON (config.use_moe)' if hasattr(args, 'moe') and args.moe else 'OFF'}")
         print(f"  EWC:     {'ON (λ=' + str(args.ewc_lambda) + ')' if args.ewc else 'OFF'}")
         print(f"  ExpertEWC: {'ON (λ=' + str(args.ewc_lambda) + ')' if args.expert_ewc else 'OFF'}")
+        print(f"  FisherArchive: {'ON' if args.fisher_archive else 'OFF'}")
         print(f"  CoT:     {'ON' if args.cot else 'OFF'}")
         print(f"  Socratic: {'ON (steps=' + str(args.socratic_steps) + ')' if args.socratic else 'OFF'}")
         print(f"  Dialectic: {'ON (problems=' + str(args.dialectic_problems) + ')' if args.dialectic else 'OFF'}")
@@ -1587,6 +1596,7 @@ Examples:
         ewc_lambda=args.ewc_lambda,
         ewc_gamma=args.ewc_gamma,
         use_expert_ewc=args.expert_ewc,
+        use_fisher_archive=args.fisher_archive,
         use_amp=args.amp,
         gradient_accumulation_steps=args.grad_accum,
         use_lora=args.lora,

@@ -13,22 +13,54 @@ from pathlib import Path
 
 
 class OnlineEWC:
-    """Online EWC: merge all past-task Fisher matrices into one running total."""
+    """Online EWC: merge all past-task Fisher matrices into one running total.
 
-    def __init__(self, model: nn.Module, gamma: float = 0.9):
+    Supports two modes:
+    - **Standard** (``use_archive=False``, default): Merges Fishers via
+      exponential decay ``F_combined = gamma * F_old + F_new``. Memory
+      of past tasks is compressed into a single matrix but suffers from
+      norm shrinkage when structurally divergent tasks (e.g.
+      multiplication) are introduced.
+    - **Fisher Archive** (``use_archive=True``): Stores each task's
+      Fisher separately in an ``O(K)`` list. The penalty becomes a sum
+      over all archived Fishers with per-task lambda weights. At 1M
+      params each Fisher is ~4MB, so even 10 tasks is only ~40MB.
+
+    Reference:
+        When ``use_archive=True``, the penalty is::
+
+            L_EWC = Σ_i λ_i/2 · Σ_j F_ij · (θ_j - θ*_ij)²
+    """  # noqa: W605
+
+    def __init__(self, model: nn.Module, gamma: float = 0.9,
+                 use_archive: bool = False) -> None:
         """
         Args:
-            model: The model whose parameters we're protecting
-            gamma: Decay rate for old Fisher info (0.9 = keep 90% of old, add 10% new)
+            model: The model whose parameters we're protecting.
+            gamma: Decay rate for old Fisher info (ignored when
+                ``use_archive=True``).
+            use_archive: If ``True``, store per-task Fishers as an
+                unmerged archive instead of merging via exponential
+                decay. Fixes the 3-task norm shrinkage collapse.
         """
         self.model = model
         self.gamma = gamma
+        self.use_archive = use_archive
 
         # merged fisher: F_combined = gamma * F_old + F_new
         self.fisher_dict: Dict[str, torch.Tensor] = {}
 
+        # Fisher Archive: list of per-task Fishers (when use_archive=True)
+        self.fisher_archive: list[Dict[str, torch.Tensor]] = []
+
         # Anchor weights (theta*) — parameters at last consolidation
         self.anchor_dict: Dict[str, torch.Tensor] = {}
+
+        # Anchor Archive: per-task anchors (when use_archive=True)
+        self.anchor_archive: list[Dict[str, torch.Tensor]] = []
+
+        # Per-task lambda weights for the archive (default: 1000 per task)
+        self.archive_lambdas: list[float] = []
 
         # Metadata
         self.task_count = 0
@@ -87,17 +119,36 @@ class OnlineEWC:
 
         return fisher
 
-    def merge_fisher(self, new_fisher: Dict[str, torch.Tensor], gamma: Optional[float] = None):
+    def merge_fisher(self, new_fisher: Dict[str, torch.Tensor],
+                     gamma: Optional[float] = None, lambda_task: Optional[float] = None):
         """Merge new Fisher into running total using exponential decay.
 
-        F_combined = gamma * F_old + (1 - gamma) * F_new
+        .. code-block:: text
+
+            F_combined = gamma * F_old + (1 - gamma) * F_new    (standard mode)
+            F_archive.append(F_new)                             (archive mode)
 
         Args:
             new_fisher: Fisher matrix for the new task
             gamma: Optional override for self.gamma. If provided, uses this
                    value for the merge (enables adaptive gamma per-merge).
+            lambda_task: Per-task lambda weight (archive mode only).
+                If provided, stored in ``self.archive_lambdas`` for the
+                penalty computation.
         """
         gamma = self.gamma if gamma is None else gamma
+
+        if self.use_archive:
+            # Archive mode: store per-task Fisher + anchor snapshot
+            self.fisher_archive.append({k: v.clone() for k, v in new_fisher.items()})
+            self.anchor_archive.append({
+                name: param.detach().clone()
+                for name, param in self.model.named_parameters()
+                if param.requires_grad
+            })
+            self.archive_lambdas.append(lambda_task or 1000.0)
+            self.task_count += 1
+            return
 
         if not self.fisher_dict:
             # First task: just use the new Fisher
@@ -157,11 +208,35 @@ class OnlineEWC:
         }
 
     def compute_ewc_penalty(self, lambda_ewc: float = 1000.0) -> torch.Tensor:
-        """Compute EWC penalty term: λ/2 · Σᵢ Fᵢ · (θᵢ - θ*ᵢ)²"""
-        if not self.fisher_dict or not self.anchor_dict:
+        """Compute EWC penalty term: λ/2 · Σᵢ Fᵢ · (θᵢ - θ*ᵢ)²
+
+        In **standard mode**, uses the single merged Fisher.
+
+        In **archive mode**, sums over all archived per-task Fishers::
+
+            penalty = Σ_i λ_i/2 · Σ_j F_ij · (θ_j - θ*_ij)²
+        """
+        if not self.fisher_dict and not self.fisher_archive:
             return torch.tensor(0.0, device=next(self.model.parameters()).device)
 
-        penalty = torch.tensor(0.0, device=next(self.model.parameters()).device)
+        device = next(self.model.parameters()).device
+
+        if self.use_archive and self.fisher_archive:
+            # Archive mode: sum over all per-task penalties
+            total = torch.tensor(0.0, device=device)
+            for task_idx, f_dict in enumerate(self.fisher_archive):
+                a_dict = self.anchor_archive[task_idx]
+                lam = self.archive_lambdas[task_idx] if task_idx < len(self.archive_lambdas) else lambda_ewc
+                task_penalty = torch.tensor(0.0, device=device)
+                for name, param in self.model.named_parameters():
+                    if param.requires_grad and name in f_dict and name in a_dict:
+                        theta_delta = param - a_dict[name]
+                        task_penalty += (f_dict[name] * theta_delta ** 2).sum()
+                total += (lam / 2.0) * task_penalty
+            return total
+
+        # Standard mode: single merged Fisher
+        penalty = torch.tensor(0.0, device=device)
         for name, param in self.model.named_parameters():
             if param.requires_grad and name in self.fisher_dict and name in self.anchor_dict:
                 # fisher_dict and anchor_dict are already on the correct device
@@ -179,22 +254,32 @@ class OnlineEWC:
 
         device = next(self.model.parameters()).device
 
-        # Move to CPU for storage
-        fisher_cpu = {}
-        for k, v in self.fisher_dict.items():
-            fisher_cpu[k] = v.detach().cpu() if v.device != torch.device('cpu') else v.detach().clone()
-
-        anchor_cpu = {}
-        for k, v in self.anchor_dict.items():
-            anchor_cpu[k] = v.detach().cpu() if v.device != torch.device('cpu') else v.detach().clone()
-
-        torch.save({
-            'fisher': fisher_cpu,
-            'anchor': anchor_cpu,
-            'task_count': self.task_count,
+        save_dict = {
             'gamma': self.gamma,
-            'consolidation_steps': self.consolidation_steps,
-        }, path)
+            'use_archive': self.use_archive,
+            'task_count': self.task_count,
+            'archive_lambdas': self.archive_lambdas,
+        }
+
+        if self.use_archive:
+            # Save archive: list of per-task Fishers + anchors
+            archive_f = []
+            for f_dict in self.fisher_archive:
+                archive_f.append({k: v.detach().cpu() for k, v in f_dict.items()})
+            archive_a = []
+            for a_dict in self.anchor_archive:
+                archive_a.append({k: v.detach().cpu() for k, v in a_dict.items()})
+            save_dict['fisher_archive'] = archive_f
+            save_dict['anchor_archive'] = archive_a
+        else:
+            # Standard mode: single merged Fisher
+            fisher_cpu = {k: v.detach().cpu() for k, v in self.fisher_dict.items()}
+            anchor_cpu = {k: v.detach().cpu() for k, v in self.anchor_dict.items()}
+            save_dict['fisher'] = fisher_cpu
+            save_dict['anchor'] = anchor_cpu
+            save_dict['consolidation_steps'] = self.consolidation_steps
+
+        torch.save(save_dict, path)
 
     def load(self, path):
         """Load Fisher matrix and anchor weights from disk."""
@@ -206,19 +291,32 @@ class OnlineEWC:
         device = next(self.model.parameters()).device
         checkpoint = torch.load(path, map_location=device, weights_only=True)
 
-        self.fisher_dict = checkpoint['fisher']
-        self.anchor_dict = checkpoint['anchor']
-        self.task_count = checkpoint['task_count']
-        self.gamma = checkpoint['gamma']
-        self.consolidation_steps = checkpoint['consolidation_steps']
+        self.gamma = checkpoint.get('gamma', self.gamma)
+        self.task_count = checkpoint.get('task_count', 0)
+        self.use_archive = checkpoint.get('use_archive', False)
+        self.archive_lambdas = checkpoint.get('archive_lambdas', [])
 
-        # Move to model device
-        for k in self.fisher_dict:
-            self.fisher_dict[k] = self.fisher_dict[k].to(device)
-        for k in self.anchor_dict:
-            self.anchor_dict[k] = self.anchor_dict[k].to(device)
+        if self.use_archive and 'fisher_archive' in checkpoint:
+            # Load archive mode
+            self.fisher_archive = []
+            for f_dict in checkpoint['fisher_archive']:
+                self.fisher_archive.append({k: v.to(device) for k, v in f_dict.items()})
+            self.anchor_archive = []
+            for a_dict in checkpoint['anchor_archive']:
+                self.anchor_archive.append({k: v.to(device) for k, v in a_dict.items()})
+            print(f"  [EWC] Loaded archive: {len(self.fisher_archive)} tasks, {self.task_count} total")
+        else:
+            # Standard mode
+            self.fisher_dict = checkpoint['fisher']
+            self.anchor_dict = checkpoint['anchor']
+            self.consolidation_steps = checkpoint.get('consolidation_steps', 0)
 
-        print(f"  [EWC] Loaded {len(self.fisher_dict)} params, {self.task_count} tasks")
+            for k in self.fisher_dict:
+                self.fisher_dict[k] = self.fisher_dict[k].to(device)
+            for k in self.anchor_dict:
+                self.anchor_dict[k] = self.anchor_dict[k].to(device)
+
+            print(f"  [EWC] Loaded {len(self.fisher_dict)} params, {self.task_count} tasks")
 
     # ── Adaptive Tuning ─────────────────────────────────────────
 
