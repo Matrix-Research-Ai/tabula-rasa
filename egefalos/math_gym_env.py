@@ -98,6 +98,11 @@ class MathGymEnv:
     The agent learns to generate scratchpad output token by token.
     Compatible with both Gymnasium's API and direct use with the MCTS engine.
 
+    Supports **curriculum RL**: when ``curriculum=True``, starts at
+    ``curriculum_min_digits`` (default 1) and auto-advances to higher
+    digit counts as the rolling average reward stabilizes above
+    ``curriculum_threshold``.
+
     Args:
         op: Operation — one of '+', '-', '*', '/'.
         max_digits: Maximum digits per operand (1-4).
@@ -106,6 +111,10 @@ class MathGymEnv:
         max_steps: Max tokens per episode (default: 20).
         force_carry: Bias toward carry/borrow problems.
         seed: RNG seed for reproducibility.
+        curriculum: Enable automatic difficulty progression.
+        curriculum_reward_window: Episodes to average for advancement.
+        curriculum_threshold: Avg reward needed to advance (default 0.8).
+        curriculum_min_digits: Starting digit count (default 1).
     """
 
     def __init__(
@@ -117,6 +126,10 @@ class MathGymEnv:
         max_steps: int = 20,
         force_carry: bool = True,
         seed: Optional[int] = None,
+        curriculum: bool = False,
+        curriculum_reward_window: int = 20,
+        curriculum_threshold: float = 0.8,
+        curriculum_min_digits: int = 1,
     ):
         self.op = op
         self.max_digits = max_digits
@@ -125,6 +138,15 @@ class MathGymEnv:
         self.max_steps = max_steps
         self.force_carry = force_carry
         self.device = torch.device("cpu")
+
+        # Curriculum RL: auto-advance digit difficulty based on average reward
+        self.curriculum = curriculum
+        self.curriculum_reward_window = curriculum_reward_window
+        self.curriculum_threshold = curriculum_threshold
+        self.curriculum_min_digits = curriculum_min_digits
+        self._curriculum_current_digits = curriculum_min_digits if curriculum else max_digits
+        self._reward_history: list[float] = []
+        self._total_episodes = 0
 
         if self.model is not None:
             self.device = next(model.parameters()).device
@@ -158,6 +180,9 @@ class MathGymEnv:
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None) -> tuple:
         """Reset the environment and generate a new problem.
 
+        When curriculum is enabled, generates problems at the current
+        curriculum difficulty level (auto-advancing based on average reward).
+
         Args:
             seed: Optional seed.
             options: Optional dict with 'problem' key to set a specific problem.
@@ -170,6 +195,8 @@ class MathGymEnv:
 
         self._reset_state()
 
+        # Use curriculum digit level if enabled, otherwise full max_digits
+
         if options and "problem" in options:
             problem_str = options["problem"]
             parsed = parse_expression(problem_str)
@@ -180,8 +207,9 @@ class MathGymEnv:
             self._expected_int = evaluate(a, b, op)
             self._expected_str = str(self._expected_int)
         else:
+            cur_digits = self._curriculum_current_digits if self.curriculum else self.max_digits
             self._expr, self._expected_str, self._expected_int = _gen_problem(
-                self.op, self.max_digits, self.force_carry
+                self.op, cur_digits, self.force_carry
             )
 
         # Encode the prompt (expression + '=')
@@ -236,6 +264,11 @@ class MathGymEnv:
         if action == self.tok.eos_id or self._step >= self.max_steps:
             terminated = True
             reward = self._compute_reward()  # +1 or -1
+            # Curriculum RL: record reward and check advancement
+            if self.curriculum:
+                self._reward_history.append(reward)
+                self._total_episodes += 1
+                self._check_curriculum_advance()
 
         obs = self._get_obs()
 
@@ -243,6 +276,19 @@ class MathGymEnv:
             self._done = True
 
         return obs, reward, terminated, truncated, self._get_info()
+
+    def _check_curriculum_advance(self):
+        """Check if average reward exceeds threshold and advance digit difficulty."""
+        if len(self._reward_history) < self.curriculum_reward_window:
+            return
+        recent = self._reward_history[-self.curriculum_reward_window:]
+        avg_reward = sum(recent) / len(recent)
+        if avg_reward >= self.curriculum_threshold and self._curriculum_current_digits < self.max_digits:
+            old_digits = self._curriculum_current_digits
+            self._curriculum_current_digits += 1
+            self._reward_history.clear()
+            print(f"  [Curriculum] Advanced from {old_digits}-digit to {self._curriculum_current_digits}-digit "
+                  f"(avg_reward={avg_reward:.2f} >= threshold={self.curriculum_threshold})")
 
     def _generate_expected_scratchpad(self) -> str:
         """Generate the correct scratchpad for the current problem.
