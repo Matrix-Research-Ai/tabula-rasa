@@ -27,9 +27,9 @@ start "Tabula Rasa AI (8002)" /MIN cmd /c "cls & title Tabula Rasa AI (8002) & p
 echo  [+] Window opened (minimized).
 echo.
 
-:: ─── Start Math Server (Port 8000) ───
-echo [*] Starting Math Server (port 8000)...
-start "Math Server (8000)" /MIN cmd /c "cls & title Math Server (8000) & python serve.py"
+:: ─── Start API Server (Port 8000) ───
+echo [*] Starting API Server (port 8000)...
+start "API Server (8000)" /MIN cmd /c "cls & title API Server (8000) & python api_server.py"
 echo  [+] Window opened (minimized).
 echo.
 
