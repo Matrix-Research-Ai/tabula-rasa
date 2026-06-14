@@ -1,0 +1,26 @@
+---
+name: Experiment / ablation
+about: Propose or document a new experiment or ablation study
+title: '[Experiment] '
+labels: experiment
+assignees: ''
+---
+
+**Hypothesis**
+What claim are you testing? (one sentence)
+
+**Method**
+- Operation(s): [add, sub, mul, div, ...]
+- Steps: [e.g. 3000]
+- EWC lambda: [e.g. 1000]
+- Seeds: [e.g. 42, 123, 456]
+- Other parameters:
+
+**Expected outcome**
+What result would support or refute the hypothesis?
+
+**Success criteria**
+- [ ] Script saved to `experiments/`
+- [ ] Results JSON saved
+- [ ] RESULTS.md updated if claims change
+- [ ] All existing tests still pass

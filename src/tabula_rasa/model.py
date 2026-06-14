@@ -566,6 +566,109 @@ class MathTransformer(nn.Module):
 
         return tokenizer.decode(all_ids[0].tolist())
 
+    def quantize_(self, bits: int = 8) -> None:
+        """Quantize linear layers in-place for inference (requires bitsandbytes).
+
+        Converts ``nn.Linear`` modules to their quantized counterparts:
+        - ``bits=8``: ``bnb.nn.Linear8bitLt``
+        - ``bits=4``: ``bnb.nn.Linear4bit``
+
+        .. warning::
+            Quantization is for **inference only**. The converted model cannot
+            be trained and should not be saved for fine-tuning.
+
+        Args:
+            bits: Bit-width — ``8`` or ``4`` (default: ``8``).
+
+        Raises:
+            ImportError: If ``bitsandbytes`` is not installed.
+            ValueError: If *bits* is not ``8`` or ``4``.
+        """
+        try:
+            import bitsandbytes as bnb  # noqa: F811
+        except ImportError:
+            raise ImportError(
+                'bitsandbytes is required for quantization. '
+                'Install with: pip install bitsandbytes'
+            )
+
+        if bits not in (8, 4):
+            raise ValueError(f'bits must be 8 or 4, got {bits}')
+
+        quant_cls = bnb.nn.Linear8bitLt if bits == 8 else bnb.nn.Linear4bit
+        bit_label = f'{bits}-bit'
+        replaced = 0
+
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                # Skip the final lm_head if it is shared via weight tying
+                if name == 'lm_head' and getattr(self.config, 'tie_embeddings', False):
+                    print(f'  [*] Skipping {name} (weight tied with embedding)')
+                    continue
+
+                # Build quantized replacement
+                new_module = quant_cls(
+                    module.in_features,
+                    module.out_features,
+                    bias=module.bias is not None,
+                )
+                new_module.weight.data = module.weight.data
+                if module.bias is not None:
+                    new_module.bias.data = module.bias.data
+
+                # Walk the module hierarchy to set the attribute at the right level
+                parts = name.split('.')
+                parent = self
+                for p in parts[:-1]:
+                    parent = getattr(parent, p)
+                setattr(parent, parts[-1], new_module)
+                replaced += 1
+
+        if replaced > 0:
+            # Move quantized parameters to the target device
+            device = next(self.parameters()).device
+            self.to(device)
+            print(f'  [*] Quantized {replaced} linear layers to {bit_label}')
+
+    @classmethod
+    def from_config_quantized(cls, config: Any, device: str = 'cpu') -> 'MathTransformer':
+        """Create a model and optionally quantize for inference.
+
+        If ``config.load_in_8bit`` or ``config.load_in_4bit`` is ``True``,
+        the model is created and then quantized using ``bitsandbytes``.
+        Falls back gracefully to a standard (unquantized) model if
+        ``bitsandbytes`` is not installed.
+
+        .. note::
+            ``load_in_8bit`` and ``load_in_4bit`` are mutually exclusive.
+            If both are ``True``, 4-bit takes precedence.
+
+        Args:
+            config: Configuration object with model hyperparameters
+                (``vocab_size``, ``d_model``, etc.) and optional
+                ``load_in_8bit`` / ``load_in_4bit`` flags.
+            device: Target device (default: ``'cpu'``).
+
+        Returns:
+            A ``MathTransformer`` instance, possibly quantized.
+        """
+        model = cls(config)
+
+        want_8bit = getattr(config, 'load_in_8bit', False)
+        want_4bit = getattr(config, 'load_in_4bit', False)
+
+        if want_8bit or want_4bit:
+            # 4-bit takes precedence if both are set
+            bits = 4 if want_4bit else 8
+            try:
+                model.quantize_(bits=bits)
+            except ImportError:
+                print(f'  [!] bitsandbytes not installed. Skipping {bits}-bit quantization.')
+        else:
+            print('  [*] Quantization not requested. Loading standard model.')
+
+        return model
+
 
 def alphazero_loss(policy_logits: torch.Tensor, value_pred: torch.Tensor | None,
                    targets: torch.Tensor,

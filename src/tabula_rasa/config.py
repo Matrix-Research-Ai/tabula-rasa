@@ -27,6 +27,10 @@ class Config:
     eos_token: str = '<EOS>'
     unk_token: str = '<UNK>'
 
+    # ── Quantization (inference only, requires bitsandbytes) ──
+    load_in_8bit: bool = False    # Enable 8-bit quantization (requires bitsandbytes)
+    load_in_4bit: bool = False    # Enable 4-bit quantization (requires bitsandbytes)
+
     # ═══════════════════════════════════════════════════════════
     # MODEL ARCHITECTURE — 1M params (full capacity)
     # ═══════════════════════════════════════════════════════════

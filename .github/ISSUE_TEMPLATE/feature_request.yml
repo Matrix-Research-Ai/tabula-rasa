@@ -1,0 +1,25 @@
+---
+name: Feature request
+about: Suggest an idea for Tabula Rasa
+title: '[Feature] '
+labels: enhancement
+assignees: ''
+---
+
+**Is your feature request related to a problem?**
+A clear description of what the problem is. Ex. I'm always frustrated when [...]
+
+**Describe the solution you'd like**
+What you want to happen.
+
+**Describe alternatives you've considered**
+Other approaches you've thought about.
+
+**Which phase does this affect?**
+- [ ] Phase 1: Arithmetic specialist
+- [ ] Phase 2: Continual learning (EWC)
+- [ ] Phase 3: Reasoning / Socratic / AlphaZero
+- [ ] Infrastructure / Documentation / Community
+
+**Additional context**
+Screenshots, links, or references that help explain the feature.

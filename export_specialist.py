@@ -81,15 +81,23 @@ def import_specialist(zip_path: str, target: str = None):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print('Usage:')
-        print('  Export: python3 export_specialist.py math/addition')
-        print('  Export: python3 export_specialist.py math/addition --out D:/backups/')
-        print('  Import: python3 export_specialist.py --import specialist_math_addition.zip')
-        sys.exit(1)
+    import argparse
 
-    if sys.argv[1] == '--import':
-        import_specialist(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
+    parser = argparse.ArgumentParser(description='Export/import a specialist as a portable package.')
+    parser.add_argument('skill_path', nargs='?', default=None,
+                        help='Path to specialist (e.g. math/addition)')
+    parser.add_argument('--out', default=None,
+                        help='Output directory for export')
+    parser.add_argument('--import-zip', dest='import_zip', default=None,
+                        help='Import a specialist from a zip file')
+    parser.add_argument('--quantize', type=int, choices=[8, 4], default=None,
+                        help='Quantize model to 8-bit or 4-bit during export (requires bitsandbytes)')
+    args = parser.parse_args()
+
+    if args.import_zip:
+        import_specialist(args.import_zip, args.out)
+    elif args.skill_path:
+        export_specialist(args.skill_path, args.out)
     else:
-        out = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == '--out' else None
-        export_specialist(sys.argv[1], out)
+        parser.print_help()
+        sys.exit(1)

@@ -1,0 +1,24 @@
+---
+name: Configuration / question
+about: Ask a question or report a configuration issue
+title: '[Question] '
+labels: question
+assignees: ''
+---
+
+**What are you trying to do?**
+Describe your goal or the problem you're trying to solve.
+
+**What have you tried?**
+Include commands, config changes, or workarounds you've already attempted.
+
+**Relevant configuration**
+```yaml
+# Paste relevant config or CLI flags here
+```
+
+**Environment:**
+- OS:
+- Python:
+- PyTorch:
+- Installation method: [pip / source / Docker]

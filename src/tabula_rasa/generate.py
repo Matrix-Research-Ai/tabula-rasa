@@ -11,13 +11,16 @@ from tabula_rasa.tokenizer import MathTokenizer
 from tabula_rasa.model import MathTransformer, count_parameters
 
 
-def load_model(checkpoint_path: str | Path) -> tuple[MathTransformer, MathTokenizer]:
+def load_model(checkpoint_path: str | Path, quantize: int | None = None
+               ) -> tuple[MathTransformer, MathTokenizer]:
     """Load a trained model and matching tokenizer from a checkpoint.
 
     Args:
         checkpoint_path: Path to the ``.pt`` checkpoint file. The
             corresponding tokenizer JSON is expected at
             ``{checkpoint_dir}/tokenizer.json``.
+        quantize: Optional bit-width for quantization (``8`` or ``4``).
+            If ``None``, no quantization is applied.
 
     Returns:
         Tuple ``(model, tokenizer)`` with the model in evaluation mode.
@@ -27,7 +30,12 @@ def load_model(checkpoint_path: str | Path) -> tuple[MathTransformer, MathTokeni
     cfg.vocab_size = tok.vocab_size  # type: ignore[misc]
     tok.max_seq_len = cfg.max_seq_len  # type: ignore[attr-defined]
 
-    model = MathTransformer(cfg)
+    if quantize == 8:
+        cfg.load_in_8bit = True
+    elif quantize == 4:
+        cfg.load_in_4bit = True
+
+    model = MathTransformer.from_config_quantized(cfg)
     state = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
     model.load_state_dict(state['model_state_dict'])
     model.eval()
@@ -40,7 +48,18 @@ def main() -> None:
     Finds the best or final checkpoint in ``checkpoints/``, loads the model,
     and enters a loop where the user can type expressions followed by ``=``.
     Type ``exit``, ``quit``, ``q``, or send ``EOF`` to stop.
+
+    CLI flag ``--quantize`` enables bitsandbytes quantization::
+
+        python3 -m tabula_rasa.generate --quantize 8
+        python3 -m tabula_rasa.generate --quantize 4
     """
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Interactive math expression solver')
+    parser.add_argument('--quantize', type=int, choices=[8, 4], default=None,
+                        help='Quantize model to 8-bit or 4-bit (requires bitsandbytes)')
+    args = parser.parse_args()
     # Find checkpoint
     ckpt = Path('checkpoints/best.pt')
     if not ckpt.exists():
@@ -50,7 +69,7 @@ def main() -> None:
         sys.exit(1)
 
     print(f'Loading model from {ckpt}')
-    model, tok = load_model(ckpt)
+    model, tok = load_model(ckpt, quantize=args.quantize)
     print(f'Model params: {count_parameters(model):,}')
     print(f'Tokenizer vocab: {tok.vocab_size}')
     print()
