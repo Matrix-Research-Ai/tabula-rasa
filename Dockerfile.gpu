@@ -1,0 +1,20 @@
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime AS gpu
+
+WORKDIR /app
+
+# Install project dependencies
+COPY pyproject.toml requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source
+COPY src/ ./src/
+COPY egefalos/ ./egefalos/
+COPY train_specialist.py api_server.py ./
+COPY Dashboard/ ./Dashboard/
+COPY scripts/ ./scripts/
+
+# Install package
+RUN pip install -e .
+
+EXPOSE 8000
+CMD ["python", "api_server.py"]

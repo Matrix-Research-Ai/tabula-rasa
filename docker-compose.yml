@@ -1,7 +1,10 @@
 version: "3.9"
 
+# ── Common configuration ──────────────────────────────────
 x-common: &common
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile
   image: tabula-rasa:latest
   environment:
     - PYTHONUNBUFFERED=1
@@ -13,11 +16,25 @@ x-common: &common
     - tabula_rasa_exports:/app/exports
     - tabula_rasa_memory:/app/memory
 
+x-common-gpu: &common-gpu
+  <<: *common
+  build:
+    context: .
+    dockerfile: Dockerfile.gpu
+  image: tabula-rasa:gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
 services:
-  # ── API Server (port 8000) ────────────────────────────
-  # Serves: Dashboard UI, REST API, training endpoints
+  # ── API Server ──────────────────────────────────────────
   api-server:
     <<: *common
+    profiles: ["cpu", "gpu", "minimal"]
     container_name: tabula-rasa-api
     ports:
       - "8000:8000"
@@ -34,70 +51,59 @@ services:
           cpus: "4"
           memory: "4G"
 
-  # ── Skill Router (port 8002) ──────────────────────────
-  # Routes queries to the right specialist
-  router:
-    <<: *common
-    container_name: tabula-rasa-router
+  # ── GPU API Server ──────────────────────────────────────
+  api-server-gpu:
+    <<: *common-gpu
+    profiles: ["gpu"]
+    container_name: tabula-rasa-api-gpu
     ports:
-      - "8002:8002"
-    command: ["python", "egefalos/tabula_rasa.py", "--port", "8002"]
-    depends_on:
-      api-server:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: "2G"
+      - "8000:8000"
+    command: ["python", "api_server.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
-  # ── Sleep Cycle Daemon ────────────────────────────────
-  # Periodically consolidates experiences via EWC
+  # ── Sleep Cycle Daemon ──────────────────────────────────
   sleep-cycle:
     <<: *common
+    profiles: ["cpu", "gpu"]
     container_name: tabula-rasa-sleep
     command: ["python", "egefalos/sleep_cycle.py", "--daemon", "--interval", "3600"]
     depends_on:
       api-server:
         condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: "2G"
 
-  # ── P2P Swarm Daemon ──────────────────────────────────
-  # Discovers other Tabula Rasa instances on the LAN
+  sleep-cycle-gpu:
+    <<: *common-gpu
+    profiles: ["gpu"]
+    container_name: tabula-rasa-sleep-gpu
+    command: ["python", "egefalos/sleep_cycle.py", "--daemon", "--interval", "3600"]
+
+  # ── P2P Swarm Daemon ────────────────────────────────────
   p2p-swarm:
     <<: *common
+    profiles: ["cpu", "gpu"]
     container_name: tabula-rasa-p2p
     ports:
       - "9000:9000"
     command: ["python", "egefalos/p2p_daemon.py", "--port", "9000"]
-    network_mode: host  # Required for UDP multicast discovery
-    depends_on:
-      api-server:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: "1"
-          memory: "1G"
+    network_mode: host
 
-  # ── Self-Improvement Daemon ───────────────────────────
-  # Autonomous self-play critique loop
+  # ── Self-Improvement Daemon ─────────────────────────────
   self-improve:
     <<: *common
+    profiles: ["cpu", "gpu"]
     container_name: tabula-rasa-self-improve
     command: ["python", "egefalos/self_improve.py", "--daemon", "--interval", "7200", "--problems", "100", "--train-steps", "300"]
-    depends_on:
-      api-server:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: "2G"
+
+  self-improve-gpu:
+    <<: *common-gpu
+    profiles: ["gpu"]
+    container_name: tabula-rasa-self-improve-gpu
+    command: ["python", "egefalos/self_improve.py", "--daemon", "--interval", "7200"]
 
 volumes:
   tabula_rasa_specialists:
