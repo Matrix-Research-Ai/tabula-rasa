@@ -152,6 +152,206 @@ class TestEWCFlag:
         assert fisher_ok, "Fisher computation failed"
 
 
+class TestExpertEWC:
+    """Per-expert Fisher tracking for MoE models."""
+
+    def test_expert_ewc_importable(self):
+        """ExpertEWC can be imported."""
+        from egefalos.expert_ewc import ExpertEWC
+        from tabula_rasa.model import MathTransformer
+
+        cfg = Config()
+        cfg.vocab_size = 44
+        cfg.d_model = 64
+        cfg.n_layers = 2
+        cfg.n_heads = 4
+        cfg.d_ff = 128
+        cfg.use_moe = True
+        cfg.num_experts = 4
+        model = MathTransformer(cfg)
+        ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
+        assert ewc is not None
+        assert not ewc.consolidated
+
+    def test_expert_ewc_save_anchor(self):
+        """save_anchor_weights captures expert and global params."""
+        from egefalos.expert_ewc import ExpertEWC
+        from tabula_rasa.model import MathTransformer
+
+        cfg = Config()
+        cfg.vocab_size = 44
+        cfg.d_model = 64
+        cfg.n_layers = 2
+        cfg.n_heads = 4
+        cfg.d_ff = 128
+        cfg.use_moe = True
+        cfg.num_experts = 4
+        model = MathTransformer(cfg)
+        ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
+
+        ewc.save_anchor_weights()
+        assert len(ewc.global_anchor) > 0
+        assert len(ewc.expert_anchor) > 0
+
+    def test_expert_ewc_fisher_compute(self):
+        """Fisher matrix computation with per-expert separation."""
+        from egefalos.expert_ewc import ExpertEWC
+        from tabula_rasa.dataset import generate_problem
+        from tabula_rasa.model import MathTransformer
+        from tabula_rasa.tokenizer import MathTokenizer
+
+        cfg = Config()
+        cfg.vocab_size = 44
+        cfg.d_model = 64
+        cfg.n_layers = 2
+        cfg.n_heads = 4
+        cfg.d_ff = 128
+        cfg.use_moe = True
+        cfg.num_experts = 4
+        cfg.max_seq_len = 16
+
+        tok = MathTokenizer()
+        model = MathTransformer(cfg)
+        ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
+
+        # Create samples
+        samples = []
+        for _ in range(10):
+            expr, ans = generate_problem(1, 2)
+            text = f"{expr}={ans}"
+            ids = tok.encode(text, add_special_tokens=True)
+            ids = (ids + [tok.pad_id] * cfg.max_seq_len)[:cfg.max_seq_len]
+            samples.append(torch.tensor(ids))
+
+        class SimpleDataset(torch.utils.data.Dataset):
+            def __init__(self, data):
+                self.data = data
+            def __len__(self):
+                return len(self.data)
+            def __getitem__(self, i):
+                return self.data[i]
+
+        dataset = SimpleDataset(samples)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=5)
+
+        ewc.compute_fisher(loader)
+        assert hasattr(ewc, "_last_global_fisher")
+        assert len(ewc._last_global_fisher) > 0
+        assert hasattr(ewc, "_last_expert_fisher")
+
+        # Verify per-expert Fishers exist
+        if ewc._last_expert_fisher:
+            sample_ek = next(iter(ewc._last_expert_fisher))
+            sample_fk = next(iter(ewc._last_expert_fisher[sample_ek]))
+            assert sample_fk is not None
+
+    def test_expert_ewc_merge_and_penalty(self):
+        """Merging Fisher then computing penalty doesn't crash."""
+        from egefalos.expert_ewc import ExpertEWC
+        from tabula_rasa.dataset import generate_problem
+        from tabula_rasa.model import MathTransformer
+        from tabula_rasa.tokenizer import MathTokenizer
+
+        cfg = Config()
+        cfg.vocab_size = 44
+        cfg.d_model = 64
+        cfg.n_layers = 2
+        cfg.n_heads = 4
+        cfg.d_ff = 128
+        cfg.use_moe = True
+        cfg.num_experts = 4
+        cfg.max_seq_len = 16
+
+        tok = MathTokenizer()
+        model = MathTransformer(cfg)
+        ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
+        ewc.save_anchor_weights()
+
+        samples = []
+        for _ in range(10):
+            expr, ans = generate_problem(1, 2)
+            text = f"{expr}={ans}"
+            ids = tok.encode(text, add_special_tokens=True)
+            ids = (ids + [tok.pad_id] * cfg.max_seq_len)[:cfg.max_seq_len]
+            samples.append(torch.tensor(ids))
+
+        class SimpleDataset(torch.utils.data.Dataset):
+            def __init__(self, data):
+                self.data = data
+            def __len__(self):
+                return len(self.data)
+            def __getitem__(self, i):
+                return self.data[i]
+
+        dataset = SimpleDataset(samples)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=5)
+
+        ewc.compute_fisher(loader)
+        ewc.merge_fisher()
+        assert ewc.consolidated
+
+        penalty = ewc.compute_ewc_penalty(lambda_ewc=1000.0)
+        assert isinstance(penalty, torch.Tensor)
+        assert penalty.ndim == 0  # scalar
+
+    def test_expert_ewc_save_load_roundtrip(self, tmp_path):
+        """Save and load preserves all Fishers and anchors."""
+        from egefalos.expert_ewc import ExpertEWC
+        from tabula_rasa.dataset import generate_problem
+        from tabula_rasa.model import MathTransformer
+        from tabula_rasa.tokenizer import MathTokenizer
+
+        cfg = Config()
+        cfg.vocab_size = 44
+        cfg.d_model = 64
+        cfg.n_layers = 2
+        cfg.n_heads = 4
+        cfg.d_ff = 128
+        cfg.use_moe = True
+        cfg.num_experts = 4
+        cfg.max_seq_len = 16
+
+        tok = MathTokenizer()
+        model = MathTransformer(cfg)
+        ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
+        ewc.save_anchor_weights()
+
+        samples = []
+        for _ in range(10):
+            expr, ans = generate_problem(1, 2)
+            text = f"{expr}={ans}"
+            ids = tok.encode(text, add_special_tokens=True)
+            ids = (ids + [tok.pad_id] * cfg.max_seq_len)[:cfg.max_seq_len]
+            samples.append(torch.tensor(ids))
+
+        class SimpleDataset(torch.utils.data.Dataset):
+            def __init__(self, data):
+                self.data = data
+            def __len__(self):
+                return len(self.data)
+            def __getitem__(self, i):
+                return self.data[i]
+
+        dataset = SimpleDataset(samples)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=5)
+
+        ewc.compute_fisher(loader)
+        ewc.merge_fisher()
+
+        save_path = tmp_path / "expert_ewc.pt"
+        ewc.save(save_path)
+        assert save_path.exists()
+
+        # Load into a new instance
+        model2 = MathTransformer(cfg)
+        ewc2 = ExpertEWC(model2, gamma=0.9, num_experts=4)
+        ewc2.load(save_path)
+        assert ewc2.consolidated
+        assert len(ewc2.global_fisher) == len(ewc.global_fisher)
+        assert len(ewc2.expert_fisher) == len(ewc.expert_fisher)
+        assert ewc2.task_count == ewc.task_count
+
+
 class TestCheckpointSave:
     """Checkpoint save/load roundtrip."""
 

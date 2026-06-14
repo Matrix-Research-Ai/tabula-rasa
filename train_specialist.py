@@ -56,6 +56,7 @@ def setup_logging(level: str = "INFO", log_file: str | None = None):
 
 
 from egefalos.online_ewc import OnlineEWC
+from egefalos.expert_ewc import ExpertEWC
 from tabula_rasa.config import Config
 from tabula_rasa.lora import (
     apply_lora_to_model,
@@ -595,6 +596,7 @@ def train_specialist(
     use_ewc=False,
     ewc_lambda=1000.0,
     ewc_gamma=0.9,
+    use_expert_ewc=False,
     use_amp=False,
     gradient_accumulation_steps=0,
     use_lora=False,
@@ -795,9 +797,23 @@ def train_specialist(
             print(
                 f"  EWC loaded: {ewc.task_count} prior tasks, {ewc.consolidation_steps} consolidations"
             )
-        # Save anchor weights before training begins
         ewc.save_anchor_weights()
         print(f"  EWC enabled (λ={ewc_lambda}, γ={ewc_gamma})")
+
+    # ── Expert EWC (per-expert Fisher for MoE) ──
+    if use_expert_ewc:
+        if not cfg.use_moe:
+            print("  [!] Expert EWC requires use_moe=True. Enabling MoE.")
+            cfg.use_moe = True
+        ewc = ExpertEWC(model, gamma=ewc_gamma, num_experts=cfg.num_experts)
+        ewc_path = op_dir / "expert_ewc_fisher.pt"
+        if ewc_path.exists():
+            ewc.load(ewc_path)
+            print(
+                f"  Expert EWC loaded: {ewc.task_count} prior tasks, {len(ewc.expert_fisher)} expert Fishers"
+            )
+        ewc.save_anchor_weights()
+        print(f"  Expert EWC enabled (λ={ewc_lambda}, γ={ewc_gamma}, experts={cfg.num_experts})")
 
     # ── Resume or fresh start ──
     global_step = 0
@@ -1169,9 +1185,11 @@ def train_specialist(
 
     # ── Save EWC state ──
     if ewc is not None:
-        ewc_path = op_dir / "ewc_fisher.pt"
+        is_expert = isinstance(ewc, ExpertEWC)
+        ewc_path = op_dir / ("expert_ewc_fisher.pt" if is_expert else "ewc_fisher.pt")
         ewc.save(ewc_path)
-        print(f"  EWC saved ({ewc.task_count} tasks, {ewc.consolidation_steps} consolidations)")
+        tag = "Expert EWC" if is_expert else "EWC"
+        print(f"  {tag} saved ({ewc.task_count} tasks)")
 
     # ── Socratic Self-Improvement (post-training refinement) ──
     if socratic and not _INTERRUPTED and best_acc > 30.0:
@@ -1307,6 +1325,9 @@ Examples:
         "--ewc-gamma", type=float, default=0.9, help="Fisher merge decay rate (default: 0.9)"
     )
     parser.add_argument(
+        "--expert-ewc", action="store_true", help="Per-expert Fisher tracking for MoE (use with --moe)"
+    )
+    parser.add_argument(
         "--amp", action="store_true", help="Enable mixed precision (AMP) training (requires CUDA)"
     )
     parser.add_argument(
@@ -1382,6 +1403,7 @@ Examples:
                 use_ewc=args.ewc,
                 ewc_lambda=args.ewc_lambda,
                 ewc_gamma=args.ewc_gamma,
+                use_expert_ewc=args.expert_ewc,
                 use_amp=args.amp,
                 gradient_accumulation_steps=args.grad_accum,
                 use_lora=args.lora,
@@ -1414,7 +1436,7 @@ Examples:
                     "loss_masking": not args.no_loss_mask,
                     "cot": args.cot,
                     "socratic": args.socratic,
-                    "ewc": args.ewc, "deep": args.deep, "lora": args.lora,
+                    "ewc": args.ewc, "expert_ewc": args.expert_ewc, "deep": args.deep, "lora": args.lora,
                 },
             )
             print(f"  W&B: enabled (project={args.wandb_project})")
@@ -1439,7 +1461,8 @@ Examples:
         print(f"  AMP:     {'ON' if args.amp else 'OFF'}")
         print(f"  Compile: {'ON' if args.compile else 'OFF'}")
         print(f"  MoE:     {'ON (config.use_moe)' if hasattr(args, 'moe') and args.moe else 'OFF'}")
-        print(f"  EWC:     {'ON (lambda=' + str(args.ewc_lambda) + ')' if args.ewc else 'OFF'}")
+        print(f"  EWC:     {'ON (λ=' + str(args.ewc_lambda) + ')' if args.ewc else 'OFF'}")
+        print(f"  ExpertEWC: {'ON (λ=' + str(args.ewc_lambda) + ')' if args.expert_ewc else 'OFF'}")
         print(f"  CoT:     {'ON' if args.cot else 'OFF'}")
         print(f"  Socratic: {'ON (steps=' + str(args.socratic_steps) + ')' if args.socratic else 'OFF'}")
         print(f"  LoRA:    {'ON (rank=' + str(args.lora_rank) + ')' if args.lora else 'OFF'}")
@@ -1463,6 +1486,7 @@ Examples:
         use_ewc=args.ewc,
         ewc_lambda=args.ewc_lambda,
         ewc_gamma=args.ewc_gamma,
+        use_expert_ewc=args.expert_ewc,
         use_amp=args.amp,
         gradient_accumulation_steps=args.grad_accum,
         use_lora=args.lora,
