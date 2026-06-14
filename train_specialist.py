@@ -750,7 +750,7 @@ def train_specialist(
 
     # ── Model ──
     model = MathTransformer(cfg).to(device)
-    use_compile = args.compile or os.environ.get("TABULA_RASA_COMPILE", "").lower() in ("1", "true")
+    use_compile = os.environ.get("TABULA_RASA_COMPILE", "").lower() in ("1", "true")
     if use_compile:
         if device.type == "cpu":
             print("  [!] torch.compile is not recommended on CPU — no speedup expected.")
