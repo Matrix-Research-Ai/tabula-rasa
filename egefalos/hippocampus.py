@@ -20,14 +20,36 @@ import torch
 
 DB_PATH = Path('memory/hippocampus.db')
 
+# Module-level connection pool — WAL mode for concurrent reads
+_connection: Optional[sqlite3.Connection] = None
+_schema_initialized: bool = False
+
 
 def get_db() -> sqlite3.Connection:
-    """Get or create the hippocampus database with tiered schema."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
+    """Get the persistent hippocampus database connection (module-level singleton).
 
-    # Core table — add new columns if missing (backward-compatible ALTER)
+    Creates the connection once on first call with WAL mode enabled.
+    Schema setup (CREATE TABLE, ALTER TABLE, indexes) also runs once.
+    Subsequent calls return the cached connection — no reconnect overhead.
+    """
+    global _connection, _schema_initialized
+
+    if _connection is None:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _connection = sqlite3.connect(str(DB_PATH))
+        _connection.row_factory = sqlite3.Row
+        _connection.execute("PRAGMA journal_mode=WAL")
+        _connection.execute("PRAGMA synchronous=NORMAL")
+
+    if not _schema_initialized:
+        _init_schema(_connection)
+        _schema_initialized = True
+
+    return _connection
+
+
+def _init_schema(conn: sqlite3.Connection):
+    """Create tables, add backward-compatible columns, and build indexes."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS experiences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +67,7 @@ def get_db() -> sqlite3.Connection:
     """)
 
     # Add missing columns for databases created with old schema
-    for col, col_type in [('tier', 'TEXT DEFAULT \'active\''),
+    for col, col_type in [('tier', "TEXT DEFAULT 'active'"),
                           ('access_count', 'INTEGER DEFAULT 0'),
                           ('last_access', 'REAL DEFAULT 0')]:
         try:
@@ -67,7 +89,6 @@ def get_db() -> sqlite3.Connection:
         ON experiences(tier, last_access)
     """)
     conn.commit()
-    return conn
 
 
 # ─── CRUD ────────────────────────────────────────────────────────────
@@ -85,7 +106,7 @@ def store_experience(input_text: str, prediction_error: float,
     """, (ts, input_text, output_text,
           prediction_error, skill, 1 if is_correction else 0, tier))
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
 
 def get_unconsolidated(limit: int = 100, tier: str = 'active') -> list[dict]:
@@ -98,7 +119,7 @@ def get_unconsolidated(limit: int = 100, tier: str = 'active') -> list[dict]:
         ORDER BY prediction_error DESC
         LIMIT ?
     """, (tier, limit)).fetchall()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
     return [dict(r) for r in rows]
 
 
@@ -124,7 +145,7 @@ def get_old_memories(limit: int = 50, tier: str = 'longterm',
         (tier,)
     ).fetchone()[0]
     if total == 0:
-        conn.close()
+        # Connection is persistent (module-level) — do not close
         return []
 
     # ── Uniform random sampling (legacy) ──────────────────────────
@@ -135,7 +156,7 @@ def get_old_memories(limit: int = 50, tier: str = 'longterm',
             FROM experiences WHERE consolidated = 1 AND tier = ?
             ORDER BY RANDOM() LIMIT ?
         """, (tier, limit)).fetchall()
-        conn.close()
+        # Connection is persistent (module-level) — do not close
         return [dict(r) for r in rows]
 
     # ── Prioritized Experience Replay (PER) ───────────────────────
@@ -144,7 +165,7 @@ def get_old_memories(limit: int = 50, tier: str = 'longterm',
                skill, is_correction, tier, access_count, last_access
         FROM experiences WHERE consolidated = 1 AND tier = ?
     """, (tier,)).fetchall()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
     if not rows:
         return []
@@ -174,7 +195,7 @@ def mark_consolidated(ids: list[int]):
         WHERE id IN ({placeholders})
     """, ids)
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
 
 # ─── Tier Promotion / Demotion ───────────────────────────────────────
@@ -192,7 +213,7 @@ def promote_to_working(ids: list[int]):
         WHERE id IN ({placeholders}) AND tier = 'active'
     """, [ts] + ids)
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
 
 def promote_to_longterm(ids: list[int]):
@@ -208,7 +229,7 @@ def promote_to_longterm(ids: list[int]):
         WHERE id IN ({placeholders}) AND tier = 'working'
     """, [ts] + ids)
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
 
 def decay_memories(min_access: int = 3, max_age_days: int = 30,
@@ -300,7 +321,7 @@ def decay_memories(min_access: int = 3, max_age_days: int = 30,
         """, (cutoff,)).rowcount
 
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
     return {
         'demoted_longterm': demoted_longterm,
@@ -328,7 +349,7 @@ def get_tiered_stats() -> dict:
                 WHEN 'longterm' THEN 3
             END
     """).fetchall()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
     stats = {}
     for r in rows:
@@ -355,7 +376,7 @@ def get_priority_stats() -> dict:
                MAX(prediction_error) AS max_error
         FROM experiences
     """).fetchone()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
     return {
         'min_error': round(row['min_error'], 4) if row['min_error'] is not None else 0.0,
@@ -396,7 +417,7 @@ def search_memories(query: str, tier: str = None, limit: int = 10) -> list[dict]
             ORDER BY prediction_error DESC
             LIMIT ?
         """, (pattern, pattern, limit)).fetchall()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
     return [dict(r) for r in rows]
 
 
@@ -411,7 +432,7 @@ def get_recent(limit: int = 20, tier: str = 'active') -> list[dict]:
         ORDER BY timestamp DESC
         LIMIT ?
     """, (tier, limit)).fetchall()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
     return [dict(r) for r in rows]
 
 
@@ -427,7 +448,7 @@ def get_stats() -> dict:
     avg_error = conn.execute(
         "SELECT AVG(prediction_error) FROM experiences"
     ).fetchone()[0]
-    conn.close()
+    # Connection is persistent (module-level) — do not close
     return {
         'total_experiences': total,
         'unconsolidated': unconsolidated,
@@ -440,7 +461,7 @@ def clear():
     conn = get_db()
     conn.execute("DELETE FROM experiences")
     conn.commit()
-    conn.close()
+    # Connection is persistent (module-level) — do not close
 
 
 # ─── Surprise Detector ──────────────────────────────────────────────

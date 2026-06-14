@@ -157,12 +157,13 @@ class OnlineEWC:
         if not self.fisher_dict or not self.anchor_dict:
             return torch.tensor(0.0, device=next(self.model.parameters()).device)
 
-        device = next(self.model.parameters()).device
-        penalty = torch.tensor(0.0, device=device)
+        penalty = torch.tensor(0.0, device=next(self.model.parameters()).device)
         for name, param in self.model.named_parameters():
             if param.requires_grad and name in self.fisher_dict and name in self.anchor_dict:
-                f = self.fisher_dict[name].to(device)
-                theta_delta = param - self.anchor_dict[name].to(device)
+                # fisher_dict and anchor_dict are already on the correct device
+                # (load() moves them; save_anchor_weights() clones in-place)
+                f = self.fisher_dict[name]
+                theta_delta = param - self.anchor_dict[name]
                 penalty += (f * theta_delta ** 2).sum()
 
         return (lambda_ewc / 2.0) * penalty

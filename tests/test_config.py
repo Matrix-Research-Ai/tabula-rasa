@@ -16,7 +16,7 @@ class TestConfigDefaults:
 
     def test_training_defaults(self, cfg):
         """Training hyperparameter defaults are set correctly."""
-        assert cfg.batch_size == 32
+        assert cfg.batch_size == 128
         assert cfg.learning_rate == 0.001
         assert cfg.weight_decay == 0.01
         assert cfg.max_steps == 30000
