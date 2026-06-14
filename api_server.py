@@ -923,7 +923,17 @@ class Handler(BaseHTTPRequestHandler):
             import torch
             with torch.no_grad():
                 out = model.generate(tok, prompt, max_new_tokens=10, temperature=0.0)
-            self._json({'prompt': prompt, 'result': out, 'time_ms': 0, 'model': f'MT-{cfg.d_model}x{cfg.n_layers}'})
+            # Extract clean answer: the model may repeat digits after reaching
+            # the correct answer because it hasn't learned to emit EOS reliably.
+            import re
+            if '=' in out:
+                after_eq = out.split('=')[-1].strip()
+                answer_match = re.search(r'-?\d+', after_eq)
+                clean_result = answer_match.group(0) if answer_match else out
+            else:
+                clean_result = out
+            self._json({'prompt': prompt, 'result': clean_result, 'raw': out,
+                        'time_ms': 0, 'model': f'MT-{cfg.d_model}x{cfg.n_layers}'})
         elif path == '/correct':
             m = load_model()
             if not m: return self._json({'error': 'No model'}, 503)
