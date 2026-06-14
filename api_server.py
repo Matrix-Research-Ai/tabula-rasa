@@ -1005,12 +1005,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def _json(self, d, s=200):
         b = json.dumps(d, ensure_ascii=False).encode()
-        self.send_response(s)
-        self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Content-Length', str(len(b)))
-        self.end_headers()
-        self.wfile.write(b)
+        try:
+            self.send_response(s)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+        except (ConnectionAbortedError, BrokenPipeError, OSError):
+            pass  # Client disconnected before response was fully sent
 
     def _read_body(self):
         l = int(self.headers.get('Content-Length', 0))
