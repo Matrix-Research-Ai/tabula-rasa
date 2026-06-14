@@ -121,7 +121,47 @@ class MathTokenizer:
             json.dump(data, f)
 
     @classmethod
-    def load(cls, path: str | Path) -> MathTokenizer:
+    def load_hub_config(cls, config: dict) -> "MathTokenizer":
+        """Build a tokenizer from a Hugging Face config dict.
+
+        The config must contain ``tokenizer_stoi`` and ``tokenizer_itos``
+        dicts (as pushed by ``push_to_hub.py``).
+
+        Args:
+            config: Config dict from ``config.json`` on the Hub.
+
+        Returns:
+            A ``MathTokenizer`` instance with the restored vocabulary.
+        """
+        tok = cls.__new__(cls)
+        stoi = config.get("tokenizer_stoi", {})
+        itos = config.get("tokenizer_itos", {})
+
+        # Convert keys to ints if they came as strings via JSON
+        if stoi and itos:
+            parsed_itos = {}
+            for k, v in itos.items():
+                try:
+                    parsed_itos[int(k)] = v
+                except (ValueError, TypeError):
+                    parsed_itos[k] = v
+            tok.stoi = stoi
+            tok.itos = parsed_itos
+        else:
+            # Fall back to default vocab
+            tok._build_vocab()
+            return tok
+
+        tok.vocab_size = len(tok.stoi)
+        tok.pad_id = tok.stoi.get("<PAD>", 0)
+        tok.bos_id = tok.stoi.get("<BOS>", 1)
+        tok.eos_id = tok.stoi.get("<EOS>", 2)
+        tok.unk_id = tok.stoi.get("<UNK>", 3)
+        tok._tokens_sorted = sorted(tok.stoi.keys(), key=len, reverse=True)
+        return tok
+
+    @classmethod
+    def load(cls, path: str | Path) -> "MathTokenizer":
         """Load a tokenizer vocabulary from a JSON file saved by :meth:`save`.
 
         Args:
