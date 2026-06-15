@@ -27,6 +27,7 @@ def ppo_loss(
     old_log_probs: torch.Tensor,
     advantages: torch.Tensor,
     values: torch.Tensor,
+    old_values: torch.Tensor,
     returns: torch.Tensor,
     clip_epsilon: float = 0.2,
     value_coef: float = 0.5,
@@ -53,7 +54,7 @@ def ppo_loss(
     policy_loss = -torch.min(surr1, surr2).mean()
 
     # Value loss (clipped)
-    value_pred_clipped = values + (values - returns).clamp(-clip_epsilon, clip_epsilon)
+    value_pred_clipped = old_values + (values - old_values).clamp(-clip_epsilon, clip_epsilon)
     value_losses = (values - returns).pow(2)
     value_losses_clipped = (value_pred_clipped - returns).pow(2)
     value_loss = 0.5 * torch.max(value_losses, value_losses_clipped).mean()
@@ -310,6 +311,7 @@ class PPOTrainer:
                 batch_old_logp = old_log_probs[batch_idx]
                 batch_adv = advantages[batch_idx]
                 batch_ret = returns[batch_idx]
+                batch_old_val = old_values[batch_idx]
 
                 # Get new log probs and values
                 batch_states = batch_states.to(self.device)
@@ -325,7 +327,7 @@ class PPOTrainer:
                 # PPO loss
                 losses = ppo_loss(
                     new_log_probs, batch_old_logp, batch_adv,
-                    new_values, batch_ret,
+                    new_values, batch_old_val, batch_ret,
                     self.clip_epsilon, self.value_coef, self.entropy_coef,
                 )
 
