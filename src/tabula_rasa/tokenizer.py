@@ -46,13 +46,16 @@ class MathTokenizer:
     # Chain-of-Thought markers for column-by-column reasoning
     COT_MARKERS: ClassVar[list[str]] = ["<STEP>", "<END>"]
 
+    # Task prefix tokens for unified multi-task model
+    OP_PREFIXES: ClassVar[list[str]] = ["[ADD]", "[SUB]", "[MUL]", "[DIV]"]
+
     def __init__(self) -> None:
         """Initialize the tokenizer and build the vocabulary."""
         self._build_vocab()
 
     def _build_vocab(self) -> None:
         """Construct the token-to-ID and ID-to-token lookup tables."""
-        all_tokens: list[str] = self.SPECIAL_TOKENS + self.COT_MARKERS + self.CARRY_TOKENS + self.MATH_CHARS
+        all_tokens: list[str] = self.SPECIAL_TOKENS + self.COT_MARKERS + self.OP_PREFIXES + self.CARRY_TOKENS + self.MATH_CHARS
         self.stoi: dict[str, int] = {t: i for i, t in enumerate(all_tokens)}
         self.itos: dict[int, str] = {i: t for i, t in enumerate(all_tokens)}
         self.vocab_size: int = len(all_tokens)
@@ -116,6 +119,11 @@ class MathTokenizer:
                 continue
             chars.append(self.itos[i])
         return "".join(chars)
+
+    def op_to_prefix(self, op: str) -> str:
+        """Map operation name to task prefix token for unified training."""
+        mapping = {"add": "[ADD]", "sub": "[SUB]", "mul": "[MUL]", "div": "[DIV]"}
+        return mapping.get(op, "[ADD]")
 
     def save(self, path: str | Path) -> None:
         """Save the tokenizer vocabulary to a JSON file.

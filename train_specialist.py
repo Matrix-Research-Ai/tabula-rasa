@@ -1647,6 +1647,72 @@ Examples:
     setup_logging(level=args.log_level, log_file="training_specialist.log")
     logger.info("Starting train_specialist with log level: %s", args.log_level)
 
+    if args.op == "all" and args.unify:
+        print()
+        print("  Unified multi-task training")
+        print("  Training ONE model on add + sub + mul + div with prefix tokens")
+        print("=" * 60)
+        tok = MathTokenizer()
+        cfg = Config()
+        cfg.vocab_size = tok.vocab_size
+        tok.max_seq_len = cfg.max_seq_len
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = MathTransformer(cfg).to(device)
+        print(f"  Model: {cfg.d_model}x{cfg.n_layers} ({sum(p.numel() for p in model.parameters()):,} params)")
+
+        from torch.utils.data import DataLoader, ConcatDataset
+        op_list = ["add", "sub", "mul"]
+        datasets = {}
+        for op_name in op_list:
+            ds = SpecialistDataset(tok, op_name, cfg)
+            datasets[op_name] = ds
+
+        optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate or 0.001)
+        batch_iterators = {op: iter(DataLoader(ds, batch_size=64, shuffle=True, drop_last=True))
+                          for op, ds in datasets.items()}
+
+        steps = args.steps or 15000
+        t0 = time.time()
+        for step in range(1, steps + 1):
+            op_name = op_list[step % len(op_list)]
+            batch_iter = batch_iterators[op_name]
+            try:
+                x, y = next(batch_iter)
+            except StopIteration:
+                batch_iterators[op_name] = iter(DataLoader(datasets[op_name], batch_size=64, shuffle=True, drop_last=True))
+                x, y = next(batch_iterators[op_name])
+            # Prepend prefix token to input and target
+            prefix_id = tok.stoi[tok.op_to_prefix(op_name)]
+            prefix = torch.full((x.size(0), 1), prefix_id, dtype=torch.long)
+            x = torch.cat([prefix, x], dim=1)
+            y = torch.cat([prefix, y], dim=1)
+            _, loss, _ = model(x, y)
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            if step % 500 == 0:
+                sps = step / (time.time() - t0)
+                print(f"  Step {step:>6}/{steps} | loss={loss.item():.4f} | {sps:.1f} st/s")
+
+        # Evaluate each operation
+        from train_specialist import evaluate
+        model.eval()
+        results = {}
+        for op_name in op_list:
+            acc = evaluate(model, tok, cfg, op_name, num=100)
+            results[op_name] = f"{acc:.0f}%"
+            print(f"  {op_name}: {acc:.0f}%")
+
+        op_dir = Path("specialists/math/general")
+        op_dir.mkdir(parents=True, exist_ok=True)
+        torch.save({"model_state_dict": model.state_dict(), "cfg": cfg, "results": results},
+                   op_dir / "best.pt")
+        tok.save(str(op_dir / "tokenizer.json"))
+        print(f"\\n  Unified model saved to {op_dir / 'best.pt'}")
+        import sys
+        sys.exit(0)
+
     if args.op == "all":
         print("\n  Training ALL specialists (add, sub, mul, div)")
         print(f"  This will take a while. Press Ctrl+C to stop between ops.\n")
