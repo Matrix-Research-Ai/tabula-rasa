@@ -11,8 +11,8 @@ from tabula_rasa.tokenizer import MathTokenizer
 
 class TestTokenizerInit:
     def test_vocab_size(self, tok):
-        """Tokenizer has expected vocabulary size (+2 for CoT markers)."""
-        assert tok.vocab_size == 46, f"Expected 46 (+2 CoT markers), got {tok.vocab_size}"
+        """Tokenizer has expected vocabulary size (+4 for OP_PREFIXES)."""
+        assert tok.vocab_size == 50, f"Expected 50 (+4 OP_PREFIXES), got {tok.vocab_size}"
 
     def test_special_token_ids(self, tok):
         """Special tokens have distinct IDs (including CoT markers)."""

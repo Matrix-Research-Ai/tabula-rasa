@@ -40,6 +40,7 @@ class TestQuickTraining:
         cfg.log_every = 10
 
         tok = MathTokenizer()
+        cfg.vocab_size = tok.vocab_size
         model = MathTransformer(cfg)
 
         from torch import optim
@@ -115,6 +116,7 @@ class TestEWCFlag:
         cfg.d_ff = 64
         cfg.max_seq_len = 16
         tok = MathTokenizer()
+        cfg.vocab_size = tok.vocab_size
         model = MathTransformer(cfg)
         ewc = OnlineEWC(model)
 
@@ -210,6 +212,7 @@ class TestExpertEWC:
         cfg.max_seq_len = 16
 
         tok = MathTokenizer()
+        cfg.vocab_size = tok.vocab_size
         model = MathTransformer(cfg)
         ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
 
@@ -262,6 +265,7 @@ class TestExpertEWC:
         cfg.max_seq_len = 16
 
         tok = MathTokenizer()
+        cfg.vocab_size = tok.vocab_size
         model = MathTransformer(cfg)
         ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
         ewc.save_anchor_weights()
@@ -311,6 +315,7 @@ class TestExpertEWC:
         cfg.max_seq_len = 16
 
         tok = MathTokenizer()
+        cfg.vocab_size = tok.vocab_size
         model = MathTransformer(cfg)
         ewc = ExpertEWC(model, gamma=0.9, num_experts=4)
         ewc.save_anchor_weights()

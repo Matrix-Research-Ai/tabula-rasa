@@ -57,9 +57,9 @@ class TestConfigDefaults:
         assert cfg.eos_token == "<EOS>"
         assert cfg.unk_token == "<UNK>"
 
-    def test_vocab_size_none(self, cfg):
-        """vocab_size starts as None, set externally."""
-        assert cfg.vocab_size is None
+    def test_vocab_size_default(self, cfg):
+        """vocab_size defaults to 50 (matches current tokenizer)."""
+        assert cfg.vocab_size == 50
 
 
 class TestConfigDevice:

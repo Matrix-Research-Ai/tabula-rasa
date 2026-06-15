@@ -270,7 +270,7 @@ class Config:
 
         return self
 
-    vocab_size: int | None = None
+    vocab_size: int = 50
 
 
     PRESETS: dict[str, dict] = {
