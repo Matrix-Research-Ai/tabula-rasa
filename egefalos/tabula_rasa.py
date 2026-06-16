@@ -369,7 +369,15 @@ class SkillManager:
                 name = ds_file.stem
                 try:
                     data = _json.loads(ds_file.read_text(encoding='utf-8'))
-                    pairs = [(q, a) for q, a in data] if data else []
+                    if isinstance(data, dict):
+                        # Knowledge base format: {category: [[q, a], ...]}
+                        pairs = []
+                        for cat, entries in data.items():
+                            for q, a in entries:
+                                pairs.append((q, a))
+                    else:
+                        # Dataset format: [[q, a], ...]
+                        pairs = [(q, a) for q, a in data] if data else []
                     pair_count = len(pairs)
                     has_real_answers = any(
                         'learning about' not in a.lower() and len(a) > 10
