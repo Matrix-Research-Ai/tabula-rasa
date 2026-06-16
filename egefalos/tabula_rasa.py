@@ -425,6 +425,13 @@ class SkillManager:
         except Exception:
             pass
 
+        # If detect_skill has a confident match for conversation, keep it (don't drop to intent detection)
+        if skill is None and confidence >= 0.5:
+            # Re-run detect_skill to check if it was conversation
+            ds_skill, ds_conf = detect_skill(prompt)
+            if ds_skill == 'conversation' and ds_conf >= 0.5:
+                skill = 'conversation'
+        
         # Conversational learning: if user follows up with an answer to a pending question
         if self.pending_question:
             result = self.learn_from_followup(prompt)
@@ -491,6 +498,14 @@ class SkillManager:
             if has_punctuation:
                 tokenizer_expansions.append('punctuation (!?.,:;)')
 
+            # Handle conversation specially — use KB retrieval even if not trained
+            ds_skill, ds_conf = detect_skill(prompt)
+            if ds_skill == 'conversation' and ds_conf >= 0.5:
+                ans_ret, meta_ret, score = self._retrieve_answer('conversation', prompt)
+                if ans_ret and len(ans_ret) > 5 and 'learning about' not in ans_ret:
+                    ans_ret = f"[HERMES-6-16-2026] {ans_ret}"
+                    return {'prompt': prompt, 'answer': ans_ret, 'knows': True, 'skill': 'conversation', 'skill_description': SKILL_REGISTRY.get('conversation', {}).get('description', ''), 'time_ms': 0, 'status': 'answered', 'confidence': 100.0, 'is_confident': True, 'message': None, 'training_info': meta_ret}
+            
             # ─── Intent detection ───
             intent = 'unknown'
             if any(phrase in prompt_lower for phrase in ['translate', 'what does', 'mean', 'say in']):
@@ -503,6 +518,7 @@ class SkillManager:
                 intent = 'capability_question'
             elif 'how are you' in prompt_lower:
                 intent = 'conversation'
+                debug(f"DEBUG_INTENT: matched how are you -> conversation")
             elif prompt_lower.startswith('how do') or prompt_lower.startswith('how does') or prompt_lower.startswith('how can') or prompt_lower.startswith('how was') or prompt_lower.startswith('how come') or prompt_lower.startswith('why do') or prompt_lower.startswith('why does') or prompt_lower.startswith('when do') or prompt_lower.startswith('when does') or prompt_lower.startswith('when did') or prompt_lower.startswith('where do') or prompt_lower.startswith('where does') or prompt_lower.startswith('where is'):
                 intent = 'explanation_question'
             elif '?' in prompt:
