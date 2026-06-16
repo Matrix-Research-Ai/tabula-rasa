@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tabula-rasa-ai/tabula-rasa"
-Repository = "https://github.com/tabula-rasa-ai/tabula-rasa"
-Documentation = "https://github.com/tabula-rasa-ai/tabula-rasa"
+Homepage = "https://github.com/Matrix-Research-Ai/tabula-rasa"
+Repository = "https://github.com/Matrix-Research-Ai/tabula-rasa"
+Documentation = "https://github.com/Matrix-Research-Ai/tabula-rasa"
 Telegram = "https://t.me/TabulaRasaAi"
 
 [project.optional-dependencies]
