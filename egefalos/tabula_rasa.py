@@ -692,28 +692,43 @@ class SkillManager:
                 'confidence': 100.0, 'is_confident': True, 'message': None,
                 'training_info': meta_ret,
             }
-
+    @torch.no_grad()
     def _retrieve_answer(self, skill, prompt):
-        """Retrieval fallback — find best training example by word overlap."""
+        """Retrieval fallback — find best training example by word overlap.
+        Returns (answer, meta, score). Low score means poor match.
+        """
         pairs = load_dataset(skill)
         prompt_words = set(prompt.lower().split())
+        # Remove common stop words so 'what is tantra?' doesn't match 'what is a black hole?' via 'what' 'is'
+        stop_words = {'what', 'is', 'are', 'a', 'an', 'the', 'do', 'does', 'did', 'can', 'will', 'would', 'could', 'should', 'may', 'might', 'in', 'on', 'at', 'to', 'of', 'for', 'with', 'by', 'about', 'like', 'this', 'that', 'it', 'its', 'you', 'your', 'i', 'me', 'my', 'we', 'our', 'they', 'them', 'he', 'she', 'his', 'her'}
+        content_words = prompt_words - stop_words
         scored = []
         for q, a in pairs:
             q_words = set(q.lower().split())
-            if not q_words: continue
-            overlap = len(prompt_words & q_words) / len(q_words)
-            scored.append((overlap, a))
+            q_content = q_words - stop_words
+            if not q_content and not q_words:
+                continue
+            # Prefer matches on content words (non-stop words)
+            if q_content:
+                overlap = len(content_words & q_content) / max(len(q_content), 1)
+            else:
+                overlap = len(prompt_words & q_words) / max(len(q_words), 1)
+            # Bonus: if answer contains a content word from question, bump score
+            topic_in_answer = any(w in a.lower() for w in content_words if len(w) > 3)
+            if topic_in_answer:
+                overlap = min(overlap + 0.2, 1.0)
+            scored.append((overlap, a, q))
         if not scored:
-            scored = [(0, "I don't know about that yet.")]
+            scored = [(0, "I don't know about that yet.", "")]
         best_score = max(s[0] for s in scored)
-        # Pick randomly from all matches >= 40% of best score
-        threshold = best_score * 0.4 if best_score > 0 else 0
-        candidates = [a for s, a in scored if s >= threshold]
+        # Higher threshold: require at least 0.3 AND content word match for non-trivial queries
+        threshold = best_score * 0.5 if best_score > 0 else 0
+        candidates = [(a, q) for s, a, q in scored if s >= threshold]
         if not candidates:
-            candidates = [a for s, a in scored]  # fallback: all available
+            candidates = [(a, q) for s, a, q in scored]
         import random
-        best_answer = random.choice(candidates)
-        creativity = round(min(len(candidates) * 11, 100))  # each variant ≈ 11%, capped at 100%
+        best_answer, best_question = random.choice(candidates)
+        creativity = round(min(len(candidates) * 11, 100))
         level = self.skill_levels.get(skill, 0)
         sc = scale_config(skill, level)
         return best_answer, {
