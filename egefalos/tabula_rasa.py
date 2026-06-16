@@ -204,10 +204,12 @@ def load_dataset(intent):
 
 def detect_skill(prompt: str) -> tuple:
     """Detect which skill a prompt needs. Returns (skill_name, confidence)."""
+    import re
     prompt_lower = prompt.lower()
     for name, info in SKILL_REGISTRY.items():
         for op in info['ops']:
-            if op in prompt_lower or op in prompt:
+            # Word-boundary check: 'hi' should match 'hi' but not 'machine'
+            if re.search(r'\b' + re.escape(op) + r'\b', prompt_lower) or re.search(r'\b' + re.escape(op) + r'\b', prompt):
                 return name, 0.9
     return None, 0.0
 
@@ -499,6 +501,15 @@ class SkillManager:
             if intent in self.models:
                 # Model already trained — try retrieval first, fall back to neural
                 ans_ret, meta_ret, score = self._retrieve_answer(intent, prompt)
+                # Check if user's question is novel — append to dataset & retrain
+                is_novel = True
+                pairs = load_dataset(intent)
+                if pairs:
+                    existing_questions = {q.lower().strip() for q, a in pairs}
+                    is_novel = prompt.lower().strip() not in existing_questions
+                if is_novel and intent not in self.training_queue:
+                    debug(f"ask: novel question for known {intent}, appending & retraining")
+                    self._auto_train_intent(intent, prompt)
                 if score >= 0.3:
                     debug(f"ask: retrieval {intent} match={score:.2f} -> {ans_ret!r}")
                     return {
@@ -564,11 +575,19 @@ class SkillManager:
         # Chat skill: retrieval first (instant, 100% accurate), neural only when needed
         if skill in {'greeting', 'capability_question', 'explanation_question', 'definition_question', 'conversation', 'question', 'unknown', 'translation'}:
             ans_ret, meta_ret, score = self._retrieve_answer(skill, prompt)
-            # Good retrieval match (>30% word overlap) → return immediately, train once for creativity
+            # Good retrieval match (>30% word overlap) → return immediately, train for novelty
             if score >= 0.3:
                 debug(f"ask: retrieval {skill} match={score:.2f} -> {ans_ret!r}")
-                # One-shot creativity training (only if never trained before)
-                if skill not in self.models and skill not in self.training_queue:
+                # Check if user's question is novel (not in dataset) — append & auto-retrain if so
+                is_novel = True
+                pairs = load_dataset(skill)
+                if pairs:
+                    existing_questions = {q.lower().strip() for q, a in pairs}
+                    is_novel = prompt.lower().strip() not in existing_questions
+                if is_novel and skill not in self.training_queue:
+                    debug(f"ask: novel question for known {skill}, appending & retraining")
+                    self._auto_train_intent(skill, prompt)
+                elif skill not in self.models and skill not in self.training_queue:
                     self._auto_train_intent(skill, prompt)
                 return {
                     'prompt': prompt, 'answer': ans_ret, 'knows': True,
@@ -632,9 +651,11 @@ class SkillManager:
         if not scored:
             scored = [(0, "I don't know about that yet.")]
         best_score = max(s[0] for s in scored)
-        # Pick randomly from all matches >= 40% of best score (wider pool = more creativity)
-        threshold = max(best_score * 0.4, 0.15)
+        # Pick randomly from all matches >= 40% of best score
+        threshold = best_score * 0.4 if best_score > 0 else 0
         candidates = [a for s, a in scored if s >= threshold]
+        if not candidates:
+            candidates = [a for s, a in scored]  # fallback: all available
         import random
         best_answer = random.choice(candidates)
         creativity = round(min(len(candidates) * 11, 100))  # each variant ≈ 11%, capped at 100%
@@ -666,14 +687,51 @@ class SkillManager:
         except:
             cpu_count = 1
         pairs = load_dataset(intent)
+        import json
+        dataset_path = Path(f"datasets/{intent}.json")
+
+        # Check if user's question is already in the dataset
+        existing_questions = {q.lower().strip() for q, a in pairs}
+        is_novel = prompt.lower().strip() not in existing_questions
+
+        if is_novel:
+            # Append the user's question with a learning answer
+            # Use closest-match retrieval answer if available, else placeholder
+            best_match_answer = None
+            if pairs:
+                prompt_words = set(prompt.lower().split())
+                scored = []
+                for q, a in pairs:
+                    q_words = set(q.lower().split())
+                    if not q_words: continue
+                    overlap = len(prompt_words & q_words) / len(q_words)
+                    scored.append((overlap, a))
+                if scored:
+                    best_score = max(s[0] for s in scored)
+                    if best_score > 0.15:
+                        # Pick answer from best match
+                        candidates = [a for s, a in scored if s >= max(best_score * 0.4, 0.15)]
+                        import random
+                        best_match_answer = random.choice(candidates)
+
+            if best_match_answer:
+                auto_answer = best_match_answer
+            else:
+                auto_answer = f"I'm learning about '{prompt}'. Ask me again and I'll improve!"
+
+            pairs = pairs + [(prompt, auto_answer)]
+            dataset_path.parent.mkdir(parents=True, exist_ok=True)
+            dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
+            debug(f"auto-dataset: appended novel question to datasets/{intent}.json ({len(pairs)} total pairs)")
+        else:
+            debug(f"auto-dataset: question already in datasets/{intent}.json ({len(pairs)} pairs)")
+
         if not pairs:
             # Auto-create dataset file with the prompt as first training pair
-            import json
-            dataset_path = Path(f"datasets/{intent}.json")
             dataset_path.parent.mkdir(parents=True, exist_ok=True)
             auto_answer = f"I'm learning about '{prompt}'. Ask me again and I'll improve!"
             pairs = [(prompt, auto_answer)]
-            dataset_path.write_text(json.dumps(pairs, indent=2), encoding="utf-8")
+            dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
             debug(f"auto-dataset: created datasets/{intent}.json with 1 pair")
             # Also add to SKILL_REGISTRY so it persists across restarts (in-memory only here)
             if intent not in SKILL_REGISTRY:
@@ -684,15 +742,13 @@ class SkillManager:
                     'dir': f'specialists/{intent}',
                 }
 
-        extra_steps = 0
         if retrain:
-            # Append current query as new training pair and increase training
+            # Append current query again as extra training pair
             pairs = pairs + [(prompt, f"I'm learning more about '{prompt}' every time you ask.")]
-            extra_steps = 100
 
         self.training_queue[intent] = True
         self.training_progress[intent] = {
-            'step': 0, 'total': sc['steps'] + (extra_steps if retrain else 0),
+            'step': 0, 'total': sc['steps'],
             'loss': 0, 'status': 'starting',
             'config': sc, 'cpu': cpu_count, 't0': time.time(),
         }
@@ -799,9 +855,10 @@ class SkillManager:
             }, save_dir / 'best.pt')
             tok.save(str(save_dir / 'tokenizer.json'))
 
-            # Register and load
+            # Register and load — preserve original ops for detect_skill
+            original_ops = SKILL_REGISTRY.get(intent, {}).get('ops', [])
             SKILL_REGISTRY[intent] = {
-                'ops': [],
+                'ops': original_ops,
                 'description': f'Auto-trained {intent} specialist',
                 'status': 'ready',
                 'dir': f'specialists/{intent}',
