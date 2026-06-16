@@ -144,24 +144,26 @@ SKILL_REGISTRY = {
 
 # Per-specialist generation config
 SPECIALIST_CONFIG = {
-    'greeting':             {'temp': 0.0, 'max_tokens': 40, 'max_seq': 96,  'd_model': 64, 'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 500},
-    'capability_question':  {'temp': 0.0, 'max_tokens': 50, 'max_seq': 128, 'd_model': 64, 'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 600},
-    'explanation_question': {'temp': 0.0, 'max_tokens': 60, 'max_seq': 128, 'd_model': 64, 'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 600},
-    'definition_question':  {'temp': 0.0, 'max_tokens': 50, 'max_seq': 128, 'd_model': 64, 'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 600},
-    'conversation':         {'temp': 0.0, 'max_tokens': 60, 'max_seq': 128, 'd_model': 64, 'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 600},
+    'greeting':             {'temp': 0.0, 'max_tokens': 50, 'max_seq': 128, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1000},
+    'capability_question':  {'temp': 0.0, 'max_tokens': 60, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
+    'explanation_question': {'temp': 0.0, 'max_tokens': 70, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
+    'definition_question':  {'temp': 0.0, 'max_tokens': 60, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
+    'conversation':         {'temp': 0.0, 'max_tokens': 70, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
 }
 
 def scale_config(intent, level=0):
-    """Scale model config by level. Each level increases d_model by 16 and steps by 200."""
+    """Scale model config by level. Each level increases d_model aggressively."""
     base = SPECIALIST_CONFIG.get(intent, SPECIALIST_CONFIG['greeting'])
     if level == 0:
         return dict(base)
     scaled = dict(base)
-    scaled['d_model'] = min(base['d_model'] + level * 16, 256)
+    # Aggressive scaling: +32 d_model, +500 steps per level
+    scaled['d_model'] = min(base['d_model'] + level * 32, 384)
     scaled['d_ff'] = scaled['d_model'] * 2
     scaled['n_heads'] = max(4, scaled['d_model'] // 16)
-    scaled['steps'] = base['steps'] + level * 200
-    scaled['max_seq'] = min(base['max_seq'] + level * 16, 256)
+    scaled['n_layers'] = min(base['n_layers'] + (level >= 3), 6)
+    scaled['steps'] = base['steps'] + level * 500
+    scaled['max_seq'] = min(base['max_seq'] + level * 32, 320)
     return scaled
 
 # Future domains to add:
@@ -533,6 +535,14 @@ class SkillManager:
                 ans = full.split('=', 1)[1].strip()
             else:
                 ans = full.strip()
+            # Auto-detect if model is too small: short/repetitive answer → upscale
+            is_repetitive = len(set(ans)) <= 3 and len(ans) >= 8
+            if len(ans) < 5 or is_repetitive:
+                curr_level = self.skill_levels.get(skill, 0)
+                if curr_level < 6:  # up to d_model=320
+                    new_level = curr_level + 1
+                    self.skill_levels[skill] = new_level
+                    debug(f"ask: {skill} answer too short ({len(ans)} chars), upscaling Lv{curr_level}→Lv{new_level}")
             debug(f"ask: chat skill {skill} generate -> {full!r} -> ans={ans!r} ({elapsed*1000:.0f}ms)")
             # Retrain to improve
             self._auto_train_intent(skill, prompt, retrain=True)
