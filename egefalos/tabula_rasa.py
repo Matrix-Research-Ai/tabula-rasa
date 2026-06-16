@@ -537,9 +537,12 @@ class SkillManager:
         # Chat skill: retrieval first (instant, 100% accurate), neural only when needed
         if skill in {'greeting', 'capability_question', 'explanation_question', 'definition_question', 'conversation', 'question', 'unknown'}:
             ans_ret, meta_ret, score = self._retrieve_answer(skill, prompt)
-            # Good retrieval match (>30% word overlap) → return immediately, no training
+            # Good retrieval match (>30% word overlap) → return immediately, train once for creativity
             if score >= 0.3:
                 debug(f"ask: retrieval {skill} match={score:.2f} -> {ans_ret!r}")
+                # One-shot creativity training (only if never trained before)
+                if skill not in self.models and skill not in self.training_queue:
+                    self._auto_train_intent(skill, prompt)
                 return {
                     'prompt': prompt, 'answer': ans_ret, 'knows': True,
                     'skill': skill,
