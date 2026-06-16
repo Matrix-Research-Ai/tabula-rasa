@@ -497,29 +497,42 @@ class SkillManager:
             # Check if we already have the model or are training it
             debug(f"ask: intent={intent!r} in_models={intent in self.models} in_queue={intent in self.training_queue}")
             if intent in self.models:
-                # Model already trained — use it AND retrain to improve
+                # Model already trained — try retrieval first, fall back to neural
+                ans_ret, meta_ret, score = self._retrieve_answer(intent, prompt)
+                if score >= 0.3:
+                    debug(f"ask: retrieval {intent} match={score:.2f} -> {ans_ret!r}")
+                    return {
+                        'prompt': prompt, 'answer': ans_ret, 'knows': True,
+                        'skill': intent,
+                        'skill_description': SKILL_REGISTRY.get(intent, {}).get('description', ''),
+                        'time_ms': 0, 'status': 'answered',
+                        'confidence': 100.0, 'is_confident': True, 'message': None,
+                        'training_info': meta_ret,
+                    }
+                # Low retrieval → use neural model
                 model = self.models[intent]
                 tok = self.tokenizers[intent]
                 t0 = time.time()
                 _sc = scale_config(intent, self.skill_levels.get(intent, 0))
-                full = model.generate(tok, prompt, max_new_tokens=_sc['max_tokens'], temperature=_sc['temp'], top_k=0)
+                inp = prompt if prompt.endswith('=') else prompt + '='
+                full = model.generate(tok, inp, max_new_tokens=_sc['max_tokens'], temperature=_sc['temp'], top_k=0)
                 elapsed = time.time() - t0
-                debug(f"ask: {intent} generate -> {full!r} ({elapsed*1000:.0f}ms)")
-                self._auto_train_intent(intent, prompt, retrain=True)
+                if '=' in full:
+                    ans = full.split('=', 1)[1].strip()
+                else:
+                    ans = full.strip()
+                debug(f"ask: nn {intent} -> {ans!r} ({elapsed*1000:.0f}ms)")
                 return {
-                    'prompt': prompt,
-                    'answer': full,
-                    'knows': True,
+                    'prompt': prompt, 'answer': ans, 'knows': True,
                     'skill': intent,
-                    'time_ms': round(elapsed * 1000),
-                    'status': 'answered',
-                    'confidence': 50.0,
-                    'is_confident': True,
-                    'message': None,
+                    'skill_description': SKILL_REGISTRY.get(intent, {}).get('description', ''),
+                    'time_ms': round(elapsed * 1000), 'status': 'answered',
+                    'confidence': 50.0, 'is_confident': True, 'message': None,
                     'training_info': {
                         'level': self.skill_levels.get(intent, 0),
                         'd_model': _sc.get('d_model', '?'),
                         'steps': _sc.get('steps', '?'),
+                        'params': sum(p.numel() for p in model.parameters()),
                     },
                 }
 
