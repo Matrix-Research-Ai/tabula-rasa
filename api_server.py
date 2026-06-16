@@ -516,7 +516,7 @@ def _config_path() -> Path:
 
 def get_config_dict():
     """Read current config values from config.py."""
-    text = _config_path().read_text()
+    text = _config_path().read_text(encoding="utf-8")
     vals = {}
     for name, (pat, caster) in CONFIG_FIELDS.items():
         m = re.search(pat + r"\s*([^#\n]+)", text, re.MULTILINE)
@@ -584,7 +584,7 @@ def save_config(values: dict) -> list[str]:
             new_line = line_prefix + " " + new_str
             text = text.replace(old_line, new_line, 1)
             changes.append(f"{name}: {old_val} → {new_str}")
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return changes
 
 

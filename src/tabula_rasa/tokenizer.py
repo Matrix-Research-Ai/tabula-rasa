@@ -202,8 +202,8 @@ class MathTokenizer:
         tok.bos_id = tok.stoi["<BOS>"]  # type: ignore[index]
         tok.eos_id = tok.stoi["<EOS>"]  # type: ignore[index]
         tok.unk_id = tok.stoi["<UNK>"]  # type: ignore[index]
-        tok.step_id = tok.stoi["<STEP>"]
-        tok.end_id = tok.stoi["<END>"]
+        tok.step_id = tok.stoi.get("<STEP>", tok.eos_id)  # type: ignore[attr-defined]
+        tok.end_id = tok.stoi.get("<END>", tok.eos_id)  # type: ignore[attr-defined]
         tok._tokens_sorted = sorted(tok.stoi.keys(), key=len, reverse=True)  # type: ignore[arg-type]
         return tok
 

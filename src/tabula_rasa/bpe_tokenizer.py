@@ -37,9 +37,12 @@ class BPETokenizer:
 
     SPECIAL_TOKENS = ["<PAD>", "<BOS>", "<EOS>", "<UNK>"]
 
-    # Base characters always available
-    BASE_CHARS = list(
-        "0123456789+-*/=().% abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\n\t!?,.:;'\"@#&|<>_"
+    # Base characters always available (deduped — no duplicates)
+    BASE_CHARS = sorted(
+        set(
+            "0123456789+-*/=().% abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ\n\t!?,.:;'\"@#&|<>_"
+        )
     )
 
     def __init__(self, base_chars: str = None):

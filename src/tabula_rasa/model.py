@@ -601,6 +601,8 @@ class MathTransformer(nn.Module):
         max_new_tokens: int = 20,
         temperature: float = 1.0,
         top_k: int = 5,
+        clean_output: bool = True,
+        repetition_penalty: float = 1.0,
     ) -> str:
         """Generate text from a prompt with KV cache for efficiency.
 
@@ -616,6 +618,10 @@ class MathTransformer(nn.Module):
             temperature: Sampling temperature (``0.0`` = greedy, default:
                 ``1.0``).
             top_k: Top-K filtering threshold (default: 5).
+            clean_output: If ``True`` (default), apply math-specific
+                post-processing to clean repeated trailing digits.
+                Set to ``False`` for chat/text generation to preserve
+                full output.
 
         Returns:
             Decoded generated string (prompt + continuation).
@@ -660,6 +666,14 @@ class MathTransformer(nn.Module):
                 next_id = next_logits.argmax(dim=-1, keepdim=True).unsqueeze(0)
             else:
                 next_logits = next_logits / temperature
+
+            # Repetition penalty: reduce logits of recently generated tokens
+            if repetition_penalty > 1.0 and all_ids.size(1) > len(input_ids[0]):
+                recently_generated = all_ids[0, len(input_ids[0]):]
+                for t in recently_generated[-8:]:
+                    next_logits[t] /= repetition_penalty
+
+            if temperature >= 0.01:
                 if top_k > 0:
                     top_vals, _ = torch.topk(next_logits, min(top_k, next_logits.size(-1)))
                     next_logits[next_logits < top_vals[-1]] = float("-inf")
@@ -673,7 +687,9 @@ class MathTransformer(nn.Module):
 
         raw = tokenizer.decode(all_ids[0].tolist())
         # Post-process: clean repeated trailing digits using math parser
-        return self._clean_generated_output(raw)
+        if clean_output:
+            return self._clean_generated_output(raw)
+        return raw
 
     @torch.no_grad()
     def best_of_n(
