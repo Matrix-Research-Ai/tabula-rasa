@@ -695,34 +695,50 @@ class SkillManager:
         is_novel = prompt.lower().strip() not in existing_questions
 
         if is_novel:
-            # Append the user's question with a learning answer
-            # Use closest-match retrieval answer if available, else placeholder
-            best_match_answer = None
-            if pairs:
-                prompt_words = set(prompt.lower().split())
-                scored = []
-                for q, a in pairs:
-                    q_words = set(q.lower().split())
-                    if not q_words: continue
-                    overlap = len(prompt_words & q_words) / len(q_words)
-                    scored.append((overlap, a))
-                if scored:
-                    best_score = max(s[0] for s in scored)
-                    if best_score > 0.15:
-                        # Pick answer from best match
-                        candidates = [a for s, a in scored if s >= max(best_score * 0.4, 0.15)]
-                        import random
-                        best_match_answer = random.choice(candidates)
-
-            if best_match_answer:
-                auto_answer = best_match_answer
-            else:
-                auto_answer = f"I'm learning about '{prompt}'. Ask me again and I'll improve!"
-
-            pairs = pairs + [(prompt, auto_answer)]
-            dataset_path.parent.mkdir(parents=True, exist_ok=True)
-            dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
-            debug(f"auto-dataset: appended novel question to datasets/{intent}.json ({len(pairs)} total pairs)")
+            # Generate synthetic dataset using blank-slate resources
+            try:
+                from tabula_rasa.dataset_generator import generate_dataset
+                # Best-match answer for the seed pair
+                seed_answer = f"I'm learning about '{prompt}'. Ask me again and I'll improve!"
+                gen_pairs = generate_dataset(
+                    intent=intent,
+                    seed_prompt=prompt,
+                    seed_answer=seed_answer,
+                    skill_manager=self,
+                    max_pairs=20,
+                    output_path=str(dataset_path),
+                )
+                if gen_pairs:
+                    pairs = gen_pairs
+                    debug(f"auto-dataset: synthetic dataset generated for {intent} ({len(pairs)} pairs)")
+                else:
+                    pairs = pairs + [(prompt, seed_answer)]
+                    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+                    dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
+                    debug(f"auto-dataset: fallback to single pair for {intent}")
+            except Exception as e:
+                import traceback
+                debug(f"auto-dataset: generator failed ({e}), using basic append")
+                # Fallback: basic append with retrieval match
+                best_match_answer = None
+                if pairs:
+                    prompt_words = set(prompt.lower().split())
+                    scored = []
+                    for q, a in pairs:
+                        q_words = set(q.lower().split())
+                        if not q_words: continue
+                        overlap = len(prompt_words & q_words) / len(q_words)
+                        scored.append((overlap, a))
+                    if scored:
+                        best_score = max(s[0] for s in scored)
+                        if best_score > 0.15:
+                            candidates = [a for s, a in scored if s >= max(best_score * 0.4, 0.15)]
+                            best_match_answer = random.choice(candidates) if candidates else None
+                auto_answer = best_match_answer or f"I'm learning about '{prompt}'. Ask me again and I'll improve!"
+                pairs = pairs + [(prompt, auto_answer)]
+                dataset_path.parent.mkdir(parents=True, exist_ok=True)
+                dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
+                debug(f"auto-dataset: appended novel question ({len(pairs)} total pairs)")
         else:
             debug(f"auto-dataset: question already in datasets/{intent}.json ({len(pairs)} pairs)")
 
