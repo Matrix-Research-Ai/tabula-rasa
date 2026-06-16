@@ -261,7 +261,7 @@ class AutoDatasetGenerator:
         pairs = []
         
         # Priority 1: Knowledge base (bundled real-world Q&A, highest quality)
-        kb_path = Path('knowledge_base.json')
+        kb_path = Path('datasets/knowledge_base.json')
         if kb_path.exists():
             try:
                 kb_data = json.loads(kb_path.read_text(encoding='utf-8'))
@@ -304,7 +304,7 @@ class AutoDatasetGenerator:
     def generate(self) -> List[Tuple[str, str]]:
         # Try to find a real answer from knowledge base first
         seed_qa = (self.seed[0], self.seed[1])  # default: placeholder
-        kb_path = Path('knowledge_base.json')
+        kb_path = Path('datasets/knowledge_base.json')
         if kb_path.exists():
             try:
                 kb_data = json.loads(kb_path.read_text(encoding='utf-8'))
