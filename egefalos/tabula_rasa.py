@@ -726,6 +726,8 @@ class SkillManager:
         from pathlib import Path
         dataset_path = Path(f"datasets/{intent}.json")
         pairs = load_dataset(intent)
+        # Remove any existing entry for the same question (keep latest)
+        pairs = [(q, a) for q, a in pairs if q.lower().strip() != question.lower().strip()]
         pairs = pairs + [(question, prompt.strip())]
         dataset_path.parent.mkdir(parents=True, exist_ok=True)
         dataset_path.write_text(json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -1095,6 +1097,8 @@ class TabulaRasaHandler(BaseHTTPRequestHandler):
                 from pathlib import Path
                 ds_path = Path(f"datasets/{intent}.json")
                 pairs = load_dataset(intent) if ds_path.exists() else []
+                # Remove existing entry for same question (dedup)
+                pairs = [(q, a) for q, a in pairs if q.lower().strip() != question.lower().strip()]
                 pairs = pairs + [(question, answer)]
                 ds_path.parent.mkdir(parents=True, exist_ok=True)
                 ds_path.write_text(_json.dumps(pairs, indent=2, ensure_ascii=False), encoding="utf-8")
