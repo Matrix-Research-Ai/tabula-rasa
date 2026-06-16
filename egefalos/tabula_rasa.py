@@ -117,7 +117,7 @@ SKILL_REGISTRY = {
         'dir': 'specialists/greeting',
     },
     'explanation_question': {
-        'ops': ['where', 'why', 'how', 'when'],
+        'ops': ['why does', 'how does', 'how do', 'how can', 'how is', 'how was', 'where does', 'where is', 'where do', 'when does', 'when did', 'what causes', 'how come'],
         'description': 'Can answer explanation questions about the AI',
         'status': 'queued',
         'dir': 'specialists/explanation_question',
@@ -129,7 +129,7 @@ SKILL_REGISTRY = {
         'dir': 'specialists/definition_question',
     },
     'conversation': {
-        'ops': ['tell me', 'joke', 'story', 'sing'],
+        'ops': ['tell me', 'joke', 'story', 'sing', 'how are you'],
         'description': 'Can engage in general conversation',
         'status': 'queued',
         'dir': 'specialists/conversation',
