@@ -592,7 +592,7 @@ class SkillManager:
             pairs = [(prompt, f"I'm still learning about that. My suggested skill is '{intent}'.")]
 
         self.training_queue[intent] = True
-        self.training_progress[intent] = {'step': 0, 'total': 200, 'loss': 0, 'status': 'starting'}
+        self.training_progress[intent] = {'step': 0, 'total': 500, 'loss': 0, 'status': 'starting'}
         import threading
         t = threading.Thread(target=self._train_intent_worker, args=(intent, pairs), daemon=True)
         t.start()
@@ -626,7 +626,7 @@ class SkillManager:
             cfg.vocab_size = tok.vocab_size
             cfg.max_seq_len = 64
             cfg.batch_size = len(pairs)
-            cfg.max_steps = 200
+            cfg.max_steps = 500
             cfg.learning_rate = 0.001
             cfg.use_reversed = False
             cfg.use_loss_masking = True
