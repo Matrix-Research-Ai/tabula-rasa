@@ -140,6 +140,18 @@ SKILL_REGISTRY = {
         'status': 'queued',
         'dir': 'specialists/capability_question',
     },
+    'question': {
+        'ops': ['?', 'what', 'who', 'when', 'where', 'why', 'how'],
+        'description': 'Can answer general questions',
+        'status': 'queued',
+        'dir': 'specialists/question',
+    },
+    'unknown': {
+        'ops': [],
+        'description': 'Generic catch-all for any unknown query',
+        'status': 'queued',
+        'dir': 'specialists/unknown',
+    },
 }
 
 # Per-specialist generation config
@@ -149,6 +161,8 @@ SPECIALIST_CONFIG = {
     'explanation_question': {'temp': 0.0, 'max_tokens': 70, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
     'definition_question':  {'temp': 0.0, 'max_tokens': 60, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
     'conversation':         {'temp': 0.0, 'max_tokens': 70, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
+    'question':             {'temp': 0.0, 'max_tokens': 60, 'max_seq': 160, 'd_model': 128, 'n_layers': 4, 'n_heads': 8, 'd_ff': 256, 'steps': 1200},
+    'unknown':              {'temp': 0.0, 'max_tokens': 40, 'max_seq': 96,  'd_model': 64,  'n_layers': 3, 'n_heads': 4, 'd_ff': 128, 'steps': 500},
 }
 
 def scale_config(intent, level=0):
@@ -341,7 +355,7 @@ class SkillManager:
         # If detected skill is not loaded, don't fall back to math for chat skills — auto-train instead
         if skill is not None and skill not in self.models:
             # Chat skills should auto-train instead of falling back to math
-            chat_skills = {'greeting', 'explanation_question', 'definition_question', 'conversation', 'capability_question'}
+            chat_skills = {'greeting', 'explanation_question', 'definition_question', 'conversation', 'capability_question', 'question', 'unknown'}
             if skill in chat_skills:
                 skill = None  # Will trigger auto-training below
             elif 'general_math' in self.models:
@@ -521,7 +535,7 @@ class SkillManager:
             }
 
         # Retrieve and generate: find best matching example, then train if wanted
-        if skill in {'greeting', 'capability_question', 'explanation_question', 'definition_question', 'conversation'}:
+        if skill in {'greeting', 'capability_question', 'explanation_question', 'definition_question', 'conversation', 'question', 'unknown'}:
             # Try neural model first if loaded
             if skill in self.models:
                 model = self.models[skill]
@@ -716,6 +730,17 @@ class SkillManager:
                 ("Goodbye!", "Goodbye! Come back anytime."),
                 ("Are you smart?", "I'm learning! My model is small but I grow through continual learning."),
             ],
+            'question': [
+                ("what day is today?", "I don't track dates, but I can help you with math problems and conversation!"),
+                ("what is the time?", "I don't have a clock, but I can answer questions and help you learn."),
+                ("what is your name?", "I'm Tabula Rasa — a learning AI that trains specialists from scratch."),
+                ("how are you?", "I'm an AI, so I don't have feelings, but I'm fully operational and ready to help!"),
+                ("who are you?", "I'm Tabula Rasa, a transformer trained from scratch to learn and assist."),
+                ("where am I?", "You're talking to Tabula Rasa! I'm running on your machine."),
+                ("what is this?", "This is Tabula Rasa — an AI that learns skills one at a time, from scratch."),
+                ("tell me something", "I'm always learning! Ask me about math, greetings, or anything you're curious about."),
+            ],
+            'unknown': [],
         }
 
         pairs = INTENT_DATA.get(intent, [])
