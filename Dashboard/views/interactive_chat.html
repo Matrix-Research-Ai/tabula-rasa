@@ -395,6 +395,11 @@
                     meta += '<span style="color:' + col + ';">&#x' + (p >= 80 ? '2705' : '26A0') + '; ' + p + '%</span>';
                 }
                 meta += '<span>' + (d.time_ms || '?') + 'ms</span>';
+                if (d.training_info) {
+                    var ti = d.training_info;
+                    meta += '<span class="tag" style="background:rgba(168,85,247,0.15);color:#a855f7;">Lv' + ti.level + ' d=' + ti.d_model + ' st=' + ti.steps + '</span>';
+                    if (ti.params) meta += '<span class="tag" style="background:rgba(59,130,246,0.12);color:#60a5fa;">' + (ti.params/1000).toFixed(0) + 'K</span>';
+                }
                 el.nextElementSibling.innerHTML = meta;
                 $('status').textContent = d.is_confident ? 'Answered.' : 'Answered (low confidence).';
                 addMsgToSession(currentSessionId, 'ai', ans, meta);

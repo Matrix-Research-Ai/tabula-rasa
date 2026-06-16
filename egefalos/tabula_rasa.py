@@ -486,6 +486,11 @@ class SkillManager:
                     'confidence': 50.0,
                     'is_confident': True,
                     'message': None,
+                    'training_info': {
+                        'level': self.skill_levels.get(intent, 0),
+                        'd_model': _sc.get('d_model', '?'),
+                        'steps': _sc.get('steps', '?'),
+                    },
                 }
 
             if intent in self.training_queue:
@@ -531,6 +536,7 @@ class SkillManager:
             debug(f"ask: chat skill {skill} generate -> {full!r} -> ans={ans!r} ({elapsed*1000:.0f}ms)")
             # Retrain to improve
             self._auto_train_intent(skill, prompt, retrain=True)
+            level = self.skill_levels.get(skill, 0)
             return {
                 'prompt': prompt,
                 'answer': ans,
@@ -542,6 +548,12 @@ class SkillManager:
                 'confidence': 50.0,
                 'is_confident': True,
                 'message': None,
+                'training_info': {
+                    'level': level,
+                    'd_model': _sc.get('d_model', '?'),
+                    'steps': _sc.get('steps', '?'),
+                    'params': sum(p.numel() for p in model.parameters()),
+                },
             }
 
         # ─── Math skill path ───
