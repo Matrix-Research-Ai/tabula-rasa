@@ -537,11 +537,18 @@
                 if (p.status === 'training') {
                     var pct = Math.round(p.step / p.total * 100);
                     var sps = '';
+                    var eta = '';
                     if (p.t0 && p.step > 0) {
                         var elapsed = (Date.now() - p.t0 * 1000) / 1000;
-                        if (elapsed > 0) sps = ' ' + (p.step / elapsed).toFixed(1) + ' steps/s';
+                        if (elapsed > 0) {
+                            var rate = p.step / elapsed;
+                            sps = ' ' + rate.toFixed(1) + ' st/s';
+                            var rem = (p.total - p.step) / rate;
+                            if (rem < 60) eta = ' ' + Math.round(rem) + 's';
+                            else eta = ' ' + Math.floor(rem/60) + 'm ' + Math.round(rem%60) + 's';
+                        }
                     }
-                    parts.push('Training ' + keys[i] + ': ' + p.step + '/' + p.total + ' (' + pct + '%) loss=' + p.loss + sps + ' CPU' + (p.cpu || '?'));
+                    parts.push('Training ' + keys[i] + ': ' + p.step + '/' + p.total + ' (' + pct + '%) loss=' + p.loss + sps + eta + ' CPU' + (p.cpu || '?'));
                 } else if (p.status === 'starting') {
                     parts.push('Starting ' + keys[i] + ' training...');
                 } else if (p.status === 'saving') {
