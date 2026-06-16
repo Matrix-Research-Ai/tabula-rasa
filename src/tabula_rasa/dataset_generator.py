@@ -123,7 +123,7 @@ class AutoDatasetGenerator:
 
     # ─── Stage 1: Template Augmentation ────────────────────────
 
-    def generate_templates(self) -> List[Tuple[str, str, int]]:
+    def generate_templates(self, kb_answer: str = "") -> List[Tuple[str, str, int]]:
         config = TEMPLATE_GENERATORS.get(self.intent, {})
         templates = config.get('templates', [])
         if not templates or not self._topic: return []
@@ -140,8 +140,8 @@ class AutoDatasetGenerator:
             if question.lower().strip() == self.seed[0].lower().strip():
                 continue
                 
-            # Dynamic Answer Templating: Prevent exact answer memorization
-            ans = self.seed[1]
+            # Prefer kb_answer for templates, fall back to seed
+            ans = kb_answer if kb_answer and len(kb_answer) > 10 else self.seed[1]
             if len(ans) < 10 and '{topic}' not in ans:
                 ans = f"Regarding {topic}, {ans}"
                 
@@ -302,11 +302,34 @@ class AutoDatasetGenerator:
     # ─── Generation Pipeline ───────────────────────────────────
 
     def generate(self) -> List[Tuple[str, str]]:
-        # Stage 0: Seed pair (Difficulty 0 - Easiest)
-        self.pairs = [(self.seed[0], self.seed[1], 0)]
+        # Try to find a real answer from knowledge base first
+        seed_qa = (self.seed[0], self.seed[1])  # default: placeholder
+        kb_path = Path('knowledge_base.json')
+        if kb_path.exists():
+            try:
+                kb_data = json.loads(kb_path.read_text(encoding='utf-8'))
+                best_match = None
+                best_score = 0.0
+                for cat, entries in kb_data.items():
+                    for q, a in entries:
+                        score = self._calculate_semantic_score(self.seed[0], q)
+                        if score > best_score and len(a) > 10:
+                            best_score = score
+                            best_match = (q, a)
+                if best_match and best_score >= 0.20:
+                    # Use the kb answer instead of placeholder
+                    seed_qa = (self.seed[0], best_match[1])
+            except Exception:
+                pass
+        
+        # Stage 0: Seed pair
+        self.pairs = [(seed_qa[0], seed_qa[1], 0)]
+
+        # Extract kb_answer for templates (prefer real answer over placeholder)
+        kb_answer = seed_qa[1] if 'learning about' not in seed_qa[1] else ""
 
         # Stage 1: Template augmentation
-        self.pairs.extend(self.generate_templates())
+        self.pairs.extend(self.generate_templates(kb_answer))
 
         # Stage 2: Backfill from similar intents
         self.pairs.extend(self.backfill_from_similar_intents())
