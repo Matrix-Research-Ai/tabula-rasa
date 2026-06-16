@@ -541,7 +541,7 @@
                         var elapsed = (Date.now() - p.t0 * 1000) / 1000;
                         if (elapsed > 0) sps = ' ' + (p.step / elapsed).toFixed(1) + ' steps/s';
                     }
-                    parts.push('Training ' + keys[i] + ': ' + p.step + '/' + p.total + ' (' + pct + '%) loss=' + p.loss + sps + ' CPUx' + (p.cpu || '?'));
+                    parts.push('Training ' + keys[i] + ': ' + p.step + '/' + p.total + ' (' + pct + '%) loss=' + p.loss + sps + ' CPU' + (p.cpu || '?'));
                 } else if (p.status === 'starting') {
                     parts.push('Starting ' + keys[i] + ' training...');
                 } else if (p.status === 'saving') {

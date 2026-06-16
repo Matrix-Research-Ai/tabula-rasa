@@ -753,15 +753,19 @@ class SkillManager:
                     loss.backward()
                     opt.step()
                 if (step + 1) % 25 == 0 or step == 0:
+                    p = self.training_progress.get(intent, {})
                     self.training_progress[intent] = {
                         'step': step + 1, 'total': cfg.max_steps,
-                        'loss': round(loss.item(), 4), 'status': 'training'
+                        'loss': round(loss.item(), 4), 'status': 'training',
+                        'cpu': p.get('cpu'), 't0': p.get('t0'),
                     }
                     print(f"  [*] {intent} training step {step+1}/{cfg.max_steps}, loss={loss.item():.4f}")
 
             self.training_progress[intent] = {
                 'step': cfg.max_steps, 'total': cfg.max_steps,
-                'loss': round(loss.item(), 4), 'status': 'saving'
+                'loss': round(loss.item(), 4), 'status': 'saving',
+                'cpu': self.training_progress.get(intent, {}).get('cpu'),
+                't0': self.training_progress.get(intent, {}).get('t0'),
             }
 
             model.eval()
@@ -795,7 +799,9 @@ class SkillManager:
             self.tokenizers[intent] = tok
             self.training_progress[intent] = {
                 'step': cfg.max_steps, 'total': cfg.max_steps,
-                'loss': round(loss.item(), 4), 'status': 'done'
+                'loss': round(loss.item(), 4), 'status': 'done',
+                'cpu': self.training_progress.get(intent, {}).get('cpu'),
+                't0': self.training_progress.get(intent, {}).get('t0'),
             }
             params = count_parameters(model)
             debug(f"train: {intent} done, loss={loss.item():.4f} params={params}")
