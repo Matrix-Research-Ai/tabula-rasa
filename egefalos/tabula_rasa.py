@@ -476,18 +476,27 @@ class SkillManager:
                     'analysis': None,
                 }
 
-            # Trigger auto-training
+            # Trigger auto-training (synchronous, fast)
             self._auto_train_intent(intent, prompt)
-            return {
-                'answer': None,
-                'knows': False,
-                'message': f"I don't know about that yet. Auto-training a {intent} specialist now — try again shortly!",
-                'detected_skill': None,
-                'suggested_skills': [suggested_skill_name] if suggested_skill_name else [],
-                'status': 'training',
-                'time_ms': 0,
-                'analysis': None,
-            }
+
+            # Now use the freshly trained model
+            if intent in self.models:
+                model = self.models[intent]
+                tok = self.tokenizers[intent]
+                t0 = time.time()
+                full = model.generate(tok, prompt, max_new_tokens=30, temperature=0.3, top_k=5)
+                elapsed = time.time() - t0
+                return {
+                    'prompt': prompt,
+                    'answer': full,
+                    'knows': True,
+                    'skill': intent,
+                    'time_ms': round(elapsed * 1000),
+                    'status': 'answered',
+                    'confidence': 50.0,
+                    'is_confident': True,
+                    'message': None,
+                }
 
         model = self.models[skill]
         tok = self.tokenizers[skill]
@@ -588,13 +597,10 @@ class SkillManager:
 
         pairs = INTENT_DATA.get(intent, [])
         if not pairs:
-            # Generate generic training pair from the prompt
             pairs = [(prompt, f"I'm still learning about that. My suggested skill is '{intent}'.")]
 
-        self.training_queue[intent] = True
-        import threading
-        t = threading.Thread(target=self._train_intent_worker, args=(intent, pairs), daemon=True)
-        t.start()
+        # Train synchronously (fast — ~2s on CPU for small models)
+        self._train_intent_worker(intent, pairs)
 
     def _train_intent_worker(self, intent: str, pairs: list):
         """Train a tiny chat specialist on intent-specific data."""
