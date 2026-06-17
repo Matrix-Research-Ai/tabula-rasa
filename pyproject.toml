@@ -41,7 +41,7 @@ dependencies = [
 Homepage = "https://github.com/Matrix-Research-Ai/tabula-rasa"
 Repository = "https://github.com/Matrix-Research-Ai/tabula-rasa"
 Documentation = "https://github.com/Matrix-Research-Ai/tabula-rasa"
-Telegram = "https://t.me/TabulaRasaAi"
+Download = "https://pypi.org/project/tabula-rasa-ai/"
 
 [project.scripts]
 tabula-rasa = "tabula_rasa.__main__:main"

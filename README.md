@@ -4,7 +4,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/Matrix-Research-Ai/tabula-rasa/actions/workflows/test.yml/badge.svg)](https://github.com/Matrix-Research-Ai/tabula-rasa/actions/workflows/test.yml)
 [![Coverage](https://img.shields.io/badge/coverage-passing-brightgreen)](tests/)
-[![PyPI](https://img.shields.io/badge/pypi-v1.3.0-orange)](https://pypi.org/project/tabula-rasa/)
+[![PyPI](https://img.shields.io/pypi/v/tabula-rasa-ai)](https://pypi.org/project/tabula-rasa-ai/)
 [![Python Versions](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
 [![Telegram](https://img.shields.io/badge/Telegram-%40TabulaRasaAi-blue)](https://t.me/TabulaRasaAi)
 
