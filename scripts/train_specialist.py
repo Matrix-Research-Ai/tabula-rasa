@@ -629,6 +629,8 @@ def train_specialist(
     rl_lr=0,
     use_socratic_stage3=False,
     use_auto_scale=False,
+    use_progressive_scratchpad=False,
+    progressive_interval=500,
 ):
     """Train a specialist for one arithmetic operation.
 
@@ -691,6 +693,9 @@ def train_specialist(
     if cot_scratchpad:
         cfg.cot_scratchpad = True
         cfg.use_scratchpad = True  # CoT implies scratchpad
+    if use_progressive_scratchpad:
+        cfg.use_progressive_scratchpad = True
+        cfg.progressive_interval = progressive_interval
     if test_hard:
         cfg.test_hard = True
 
@@ -825,6 +830,8 @@ def train_specialist(
     print(
         f"  Reversed: {cfg.use_reversed}  |  Loss masking: {cfg.use_loss_masking}  |  Scratchpad: {cfg.use_scratchpad}  |  CoT: {cfg.cot_scratchpad}"
     )
+    if getattr(cfg, 'use_progressive_scratchpad', False) and op in ("add", "sub"):
+        print(f"  Progressive scratchpad: enabled (interval={getattr(cfg, 'progressive_interval', 500)} steps)")
     print(f"  Estimated time: {_estimate_time(cfg.max_steps, str(device))}")
 
     optimizer = _make_optimizer(model, cfg, cfg.learning_rate)
@@ -1007,6 +1014,16 @@ def train_specialist(
                     break
                 x, y = next(batch_iter)
                 x, y = x.to(device), y.to(device)
+
+                # ── Progressive scratchpad: reveal columns gradually ──
+                if getattr(cfg, 'use_progressive_scratchpad', False) and op in ("add", "sub"):
+                    prog_interval = getattr(cfg, 'progressive_interval', 500)
+                    visible = 1 + global_step // prog_interval
+                    # Find first non-masked position (start of scratchpad in y)
+                    non_masked = (y != -100).nonzero(as_tuple=True)[0]
+                    if len(non_masked) > 0:
+                        sp_start = non_masked[0].item()
+                        y[:, sp_start + visible:] = -100
 
                 if scaler is not None:
                     with autocast():
@@ -1540,6 +1557,14 @@ Examples:
         "--cot", action="store_true", help="Use Chain-of-Thought scratchpad format (column-by-column steps)"
     )
     parser.add_argument(
+        "--progressive", action="store_true",
+        help="Progressive scratchpad masking: reveals columns one at a time during training"
+    )
+    parser.add_argument(
+        "--progressive-interval", type=int, default=500,
+        help="Steps between revealing each new scratchpad column (default: 500)"
+    )
+    parser.add_argument(
         "--quick", action="store_true", help="Quick smoke test (500 steps, small dataset)"
     )
     parser.add_argument(
@@ -1771,6 +1796,8 @@ Examples:
                 rl_lr=args.rl_lr,
                 use_socratic_stage3=args.socratic_stage3,
                 use_auto_scale=args.auto,
+                use_progressive_scratchpad=args.progressive,
+                progressive_interval=args.progressive_interval,
             )
             results[op_name] = "OK" if model is not None else "FAILED"
         print(f"\n  Results: {results}")
@@ -1830,6 +1857,7 @@ Examples:
         print(f"  DPO:     {'ON' if args.dpo else 'OFF'}")
         print(f"  Dialectic: {'ON (problems=' + str(args.dialectic_problems) + ')' if args.dialectic else 'OFF'}")
         print(f"  LoRA:    {'ON (rank=' + str(args.lora_rank) + ')' if args.lora else 'OFF'}")
+        print(f"  Progressive: {'ON (interval=' + str(args.progressive_interval) + ')' if args.progressive else 'OFF'}")
         print(f"  WandB:   {'ON' if args.wandb else 'OFF'}")
         print(f"  Est. time: {est_min:.0f} min ({est_min/60:.1f} hours)")
         print(f"{'='*50}")
@@ -1871,4 +1899,6 @@ Examples:
         rl_lr=args.rl_lr,
         use_socratic_stage3=args.socratic_stage3,
         use_auto_scale=args.auto,
+        use_progressive_scratchpad=args.progressive,
+        progressive_interval=args.progressive_interval,
     )

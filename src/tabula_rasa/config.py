@@ -89,6 +89,8 @@ class Config:
     # Training algorithm flags
     use_reversed: bool = True  # Reverse digits for add/sub (aligns carry)
     use_loss_masking: bool = True  # ignore_index=-100 for prompt/PAD tokens
+    use_progressive_scratchpad: bool = False  # Progressive reveal of scratchpad columns
+    progressive_interval: int = 500  # New scratchpad column revealed every N steps
     use_hard_negative: bool = True  # Entropy-guided curriculum in ReST loop
     label_smoothing: float = 0.0  # 0=off, >0 softens targets
     tie_embeddings: bool = False  # False=untied (better for algorithmic tasks)
