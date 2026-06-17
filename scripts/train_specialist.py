@@ -144,10 +144,21 @@ def generate_problem(
             for i in range(max_len):
                 da = int(ra[i]) if i < len(ra) else 0
                 db = int(rb[i]) if i < len(rb) else 0
-                total = da + db + carry
-                carry = total // 10
-                digit = total % 10
-                sp += f"{carry}{digit}"
+                if op == "add":
+                    total = da + db + carry
+                    carry = total // 10
+                    digit = total % 10
+                    sp += f"{carry}{digit}"
+                else:  # sub — borrow scratchpad
+                    # Apply borrow from previous column
+                    da_eff = da - carry  # carry represents borrow from prev column
+                    borrow = 0
+                    if da_eff < db:
+                        da_eff += 10
+                        borrow = 1
+                    digit = da_eff - db
+                    sp += f"{borrow}{digit}"
+                    carry = borrow  # pass borrow to next column
             ans_str = sp
         else:
             ans_str = str(ans)[::-1]
@@ -278,20 +289,19 @@ def generate_cot_trace(op: str, a: int, b: int, ans: int, reversed_digits: bool 
             total = da + db + carry
             carry = total // 10
             digit = total % 10
-        else:  # sub
-            # Borrow handling: if da < db + carry, borrow 10
-            if da < db + carry:
-                da += 10
-            total = da - db - carry
-            carry = 1 if total < 0 else 0  # For sub, borrow flag
-            digit = total % 10 if total >= 0 else (total + 10) % 10
-            carry = 1 if da >= 10 else 0  # Borrow = 1 if we needed to borrow
+        else:  # sub — borrow handling
+            borrow_flag = 0
+            da_eff = da - carry  # carry = borrow from previous column
+            if da_eff < db:
+                da_eff += 10
+                borrow_flag = 1
+            digit = da_eff - db
+            carry = borrow_flag
 
         # Column step: show the column computation
-        if reversed_digits:
-            steps.append(f"{da}{opsym}{db}={digit}")
-        else:
-            steps.append(f"{da}{opsym}{db}={digit}")
+        # For subtraction, show da_eff (after borrow adjustment) not raw da
+        display_da = da_eff if op == "sub" and borrow_flag else da
+        steps.append(f"{display_da}{opsym}{db}={digit}")
 
     if carry and op == "add":
         steps.append(f"1{opsym}0={carry}")

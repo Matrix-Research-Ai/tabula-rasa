@@ -8,7 +8,7 @@ Usage:
     python3 tabula_rasa.py --learn biology  # Queue a new skill for training
 """
 
-import argparse, json, time, sys, re, os
+import argparse, json, time, sys, re, os, random, threading
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -29,6 +29,18 @@ import torch
 from tabula_rasa.config import Config
 from tabula_rasa.tokenizer import MathTokenizer
 from tabula_rasa.model import MathTransformer, count_parameters
+from tabula_rasa.lora import (
+    LoRALayer,
+    apply_lora_to_model,
+    set_lora_trainable,
+    save_lora_adapters,
+    switch_lora_adapters,
+)
+
+
+# Module-level flag: train new conversational specialists as LoRA adapters
+# on a shared base model instead of full models from scratch.
+USE_LORA_FOR_CHAT = True
 
 
 # ─── Skill Registry ────────────────────────────────────────────────
@@ -229,6 +241,12 @@ class SkillManager:
         self.skill_levels = {}  # intent -> level (auto-increments on retrain)
         self.pending_question = None  # {prompt, intent, timestamp} — last unanswered question
         self.last_answer = None  # {answer, prompt, skill} — last answer given
+        # Shared base model + LoRA adapters (for USE_LORA_FOR_CHAT mode)
+        self._base_model = None
+        self._base_tokenizer = None
+        self._base_config = None
+        self._lora_adapters = {}  # intent -> list of LoRALayer references
+        self._base_training_lock = threading.Lock()
         self._load_existing()
 
     def _load_existing(self):
@@ -280,8 +298,158 @@ class SkillManager:
                 except Exception as e:
                     print(f'  [!] Failed to load {name}: {e}')
 
+        # After loading full-model skills, try to discover saved LoRA adapters
+        self._load_existing_lora()
+
         # Replay saved corrections from persistent memory
         self._replay_memory()
+
+    def _load_existing_lora(self):
+        """Load previously-trained LoRA adapters into the shared base model."""
+        if not USE_LORA_FOR_CHAT:
+            return
+        lora_dirs = sorted(Path('specialists').glob('*/lora.pt'))
+        if not lora_dirs:
+            return
+        # Ensure shared base model exists before loading adapters
+        try:
+            model = self._ensure_shared_base()
+        except Exception:
+            return  # Base not available, skip LoRA loading
+        for lora_path in lora_dirs:
+            intent = lora_path.parent.name
+            if intent.startswith('_'):
+                continue  # skip internal dirs
+            try:
+                if intent not in self.models:
+                    # First time: apply LoRA wrappers, then load weights
+                    has_lora = any(
+                        isinstance(m, LoRALayer) for m in model.modules()
+                    )
+                    if not has_lora:
+                        apply_lora_to_model(model, rank=8, alpha=1.0)
+                    layers = switch_lora_adapters(model, str(lora_path))
+                    self._lora_adapters[intent] = layers
+                    self.models[intent] = model
+                    self.tokenizers[intent] = self._base_tokenizer
+                    level = 0
+                    # Try to read level from saved best.pt metadata
+                    meta_path = lora_path.parent / 'best.pt'
+                    if meta_path.exists():
+                        try:
+                            meta = torch.load(
+                                str(meta_path), map_location='cpu', weights_only=True
+                            )
+                            level = meta.get('model_config', {}).get('level', 0)
+                        except Exception:
+                            pass
+                    self.skill_levels[intent] = level
+                    from tabula_rasa.bpe_tokenizer import BPETokenizer
+                    tok_path = lora_path.parent / 'tokenizer.json'
+                    tokenizer = (
+                        BPETokenizer.load(str(tok_path))
+                        if tok_path.exists()
+                        else self._base_tokenizer
+                    )
+                    self.tokenizers[intent] = tokenizer
+                    SKILL_REGISTRY.setdefault(intent, {}).update(
+                        {'status': 'ready', 'dir': str(lora_path.parent)}
+                    )
+                    print(
+                        f'  [*] LoRA adapter: {intent} ({sum(p.numel() for p in layers[0].parameters() if p.requires_grad):,} lora params)'
+                    )
+                else:
+                    # Model already registered (was full-model) — skip
+                    pass
+            except Exception as e:
+                print(f'  [!] Failed to load LoRA adapter {intent}: {e}')
+
+    def _ensure_shared_base(self):
+        """Lazily create the shared base model and character-level tokenizer."""
+        if self._base_model is not None:
+            return self._base_model
+
+        from tabula_rasa.bpe_tokenizer import BPETokenizer
+        from tabula_rasa.config import Config
+        from tabula_rasa.model import MathTransformer, count_parameters
+
+        # Character-level tokenizer (96 tokens) — universal, works for any text
+        tok = BPETokenizer()
+
+        cfg = Config()
+        cfg.d_model = 128
+        cfg.n_layers = 4
+        cfg.n_heads = 4
+        cfg.d_ff = 512
+        cfg.vocab_size = tok.vocab_size
+        cfg.max_seq_len = 192  # char-level needs more room than BPE
+        cfg.use_loss_masking = True
+        cfg.use_reversed = False
+        cfg.dropout = 0.1
+
+        tok.max_seq_len = cfg.max_seq_len
+        model = MathTransformer(cfg)
+
+        # Save base model and tokenizer
+        base_dir = Path('specialists/_base')
+        base_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                'model_state_dict': model.state_dict(),
+                'model_config': {
+                    'd_model': cfg.d_model,
+                    'n_layers': cfg.n_layers,
+                    'n_heads': cfg.n_heads,
+                    'd_ff': cfg.d_ff,
+                    'max_seq_len': cfg.max_seq_len,
+                    'vocab_size': cfg.vocab_size,
+                },
+            },
+            base_dir / 'model.pt',
+        )
+        tok.save(str(base_dir / 'tokenizer.json'))
+
+        self._base_model = model
+        self._base_tokenizer = tok
+        self._base_config = cfg
+
+        params = count_parameters(model)
+        debug(f'shared base: {params:,} params, {tok.vocab_size} tokens')
+        print(
+            f'  [*] Shared base model ready ({params:,} params, {tok.vocab_size} tokens)'
+        )
+        return model
+
+    def _switch_lora_adapter(self, intent):
+        """Switch the shared base model to a specific intent's LoRA adapter."""
+        if not USE_LORA_FOR_CHAT:
+            return False
+        if self._base_model is None:
+            return False
+
+        # Already loaded for this intent — just set eval mode
+        if intent in self._lora_adapters:
+            self._base_model.eval()
+            return True
+
+        # Try loading from disk
+        lora_path = Path(f'specialists/{intent}/lora.pt')
+        if not lora_path.exists():
+            return False
+
+        try:
+            has_lora = any(
+                isinstance(m, LoRALayer) for m in self._base_model.modules()
+            )
+            if not has_lora:
+                apply_lora_to_model(self._base_model, rank=8, alpha=1.0)
+            layers = switch_lora_adapters(self._base_model, str(lora_path))
+            self._lora_adapters[intent] = layers
+            self._base_model.eval()
+            return True
+        except Exception as e:
+            debug(f'switch_lora_adapter({intent}): {e}')
+            return False
 
     def _replay_memory(self):
         """Replay saved corrections from persistent memory."""
@@ -611,6 +779,9 @@ class SkillManager:
                         'training_info': meta_ret,
                     }
                 # Low retrieval → use neural model
+                # Switch to the correct LoRA adapter if using shared base
+                if USE_LORA_FOR_CHAT and intent in self._lora_adapters:
+                    self._switch_lora_adapter(intent)
                 model = self.models[intent]
                 tok = self.tokenizers[intent]
                 t0 = time.time()
@@ -690,6 +861,9 @@ class SkillManager:
                 }
             # Low retrieval score → try neural model if loaded
             if skill in self.models:
+                # Switch to the correct LoRA adapter if using shared base
+                if USE_LORA_FOR_CHAT and skill in self._lora_adapters:
+                    self._switch_lora_adapter(skill)
                 model = self.models[skill]
                 tok = self.tokenizers[skill]
                 t0 = time.time()
@@ -949,123 +1123,254 @@ class SkillManager:
         t.start()
 
     def _train_intent_worker(self, intent: str, pairs: list):
-        """Train a tiny chat specialist on intent-specific data."""
+        """Train a tiny chat specialist on intent-specific data.
+
+        When USE_LORA_FOR_CHAT is enabled, trains a LoRA adapter on the
+        shared base model instead of a full model from scratch. This is
+        ~10x faster and uses ~50x less storage per intent.
+        """
         import torch
         debug(f"train: worker starting intent={intent!r} pairs={len(pairs)}")
         try:
-            from tabula_rasa.bpe_tokenizer import BPETokenizer
-            from tabula_rasa.model import MathTransformer, count_parameters
-            from tabula_rasa.config import Config
-
-            print(f"  [*] Auto-training {intent} specialist ({len(pairs)} pairs)...")
-
-            # Build BPE tokenizer from training texts
-            tok = BPETokenizer()
-            texts = []
-            for q, a in pairs:
-                texts.append(f"{q}=")
-                texts.append(a)
-            # Add the separator pattern
-            tok.learn_bpe_from_texts(texts, num_merges=50, verbose=False)
-            print(f"  [*] BPE vocab: {tok.vocab_size} tokens")
-
-            # Tiny config for fast training
             prog = self.training_progress.get(intent, {})
             _sc = prog.get('config', {})
-            cfg = Config()
-            cfg.d_model = _sc.get('d_model', 64)
-            cfg.n_layers = _sc.get('n_layers', 3)
-            cfg.n_heads = _sc.get('n_heads', 4)
-            cfg.d_ff = _sc.get('d_ff', 128)
-            cfg.vocab_size = tok.vocab_size
-            cfg.max_seq_len = _sc.get('max_seq', 128)
-            cfg.batch_size = len(pairs)
-            cfg.max_steps = prog.get('total', 500)
-            cfg.learning_rate = 0.001
-            cfg.use_reversed = False
-            cfg.use_loss_masking = True
+            max_steps = prog.get('total', 500)
+            learning_rate = 0.001
 
-            tok.max_seq_len = cfg.max_seq_len
-            model = MathTransformer(cfg)
-            opt = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
+            if USE_LORA_FOR_CHAT:
+                # ════════════════════════════════════════════════════
+                # LoRA PATH: train adapter on shared base model
+                # ════════════════════════════════════════════════════
+                with self._base_training_lock:
+                    model = self._ensure_shared_base()
+                    tok = self._base_tokenizer  # character-level
 
-            # Encode training data
-            import torch
-            xs, ys = [], []
-            for q, a in pairs:
-                text = f"{q}={a}"
-                ids = tok.encode(text, add_special_tokens=True)
-                ids = (ids + [tok.pad_id] * cfg.max_seq_len)[:cfg.max_seq_len]
-                xs.append(torch.tensor(ids[:-1]))
-                ys.append(torch.tensor(ids[1:]))
+                    print(f"  [*] LoRA auto-training {intent} ({len(pairs)} pairs)...")
 
-            x = torch.stack(xs)
-            y = torch.stack(ys)
-            dataset = torch.utils.data.TensorDataset(x, y)
-            loader = torch.utils.data.DataLoader(dataset, batch_size=min(8, len(pairs)), shuffle=True)
+                    # Ensure LoRA wrappers exist on the shared base (only once)
+                    has_lora = any(
+                        isinstance(m, LoRALayer) for m in model.modules()
+                    )
+                    if not has_lora:
+                        apply_lora_to_model(model, rank=8, alpha=1.0)
 
-            model.train()
-            for step in range(cfg.max_steps):
-                for bx, by in loader:
-                    opt.zero_grad()
-                    _, loss, _ = model(bx, by)
-                    loss.backward()
-                    opt.step()
-                if (step + 1) % 25 == 0 or step == 0:
-                    p = self.training_progress.get(intent, {})
-                    self.training_progress[intent] = {
-                        'step': step + 1, 'total': cfg.max_steps,
-                        'loss': round(loss.item(), 4), 'status': 'training',
-                        'cpu': p.get('cpu'), 't0': p.get('t0'),
+                    set_lora_trainable(model, trainable=True)
+                    lora_params = [
+                        p for n, p in model.named_parameters() if 'lora_' in n
+                    ]
+                    opt = torch.optim.AdamW(lora_params, lr=learning_rate)
+
+                    # Encode training data using shared char-level tokenizer
+                    xs, ys = [], []
+                    for q, a in pairs:
+                        text = f"{q}={a}"
+                        ids = tok.encode(text, add_special_tokens=True)
+                        ids = (ids + [tok.pad_id] * tok.max_seq_len)[
+                            : tok.max_seq_len
+                        ]
+                        xs.append(torch.tensor(ids[:-1]))
+                        ys.append(torch.tensor(ids[1:]))
+
+                    x = torch.stack(xs)
+                    y = torch.stack(ys)
+                    dataset = torch.utils.data.TensorDataset(x, y)
+                    loader = torch.utils.data.DataLoader(
+                        dataset, batch_size=min(8, len(pairs)), shuffle=True
+                    )
+
+                    model.train()
+                    for step in range(max_steps):
+                        for bx, by in loader:
+                            opt.zero_grad()
+                            _, loss, _ = model(bx, by)
+                            loss.backward()
+                            opt.step()
+                        if (step + 1) % 25 == 0 or step == 0:
+                            p = self.training_progress.get(intent, {})
+                            self.training_progress[intent] = {
+                                'step': step + 1,
+                                'total': max_steps,
+                                'loss': round(loss.item(), 4),
+                                'status': 'training',
+                                'cpu': p.get('cpu'),
+                                't0': p.get('t0'),
+                            }
+                            print(
+                                f"  [*] {intent} step {step+1}/{max_steps}, loss={loss.item():.4f}"
+                            )
+
+                    model.eval()
+
+                    # Save LoRA adapter (small file — just A and B matrices)
+                    save_dir = Path(f"specialists/{intent}")
+                    save_dir.mkdir(parents=True, exist_ok=True)
+                    # Collect the current LoRA layers from the model
+                    current_lora_layers = [
+                        m for m in model.modules() if isinstance(m, LoRALayer)
+                    ]
+                    save_lora_adapters(current_lora_layers, str(save_dir / 'lora.pt'))
+
+                    # Save minimal metadata (not the full model)
+                    torch.save(
+                        {
+                            'step': max_steps,
+                            'loss': loss.item(),
+                            'model_config': {
+                                'd_model': self._base_config.d_model,
+                                'n_layers': self._base_config.n_layers,
+                                'n_heads': self._base_config.n_heads,
+                                'd_ff': self._base_config.d_ff,
+                                'max_seq_len': self._base_config.max_seq_len,
+                                'lora_rank': 8,
+                                'lora_alpha': 1.0,
+                                'level': self.skill_levels.get(intent, 0),
+                            },
+                        },
+                        save_dir / 'best.pt',
+                    )
+                    # Save the shared tokenizer path ref (don't duplicate)
+                    tok.save(str(save_dir / 'tokenizer.json'))
+
+                    # Register
+                    original_ops = SKILL_REGISTRY.get(intent, {}).get('ops', [])
+                    SKILL_REGISTRY[intent] = {
+                        'ops': original_ops,
+                        'description': f'Auto-trained {intent} specialist',
+                        'status': 'ready',
+                        'dir': f'specialists/{intent}',
                     }
-                    print(f"  [*] {intent} training step {step+1}/{cfg.max_steps}, loss={loss.item():.4f}")
+                    self.models[intent] = model  # reference to shared base
+                    self.tokenizers[intent] = tok
+                    self._lora_adapters[intent] = current_lora_layers
+                    self.training_progress[intent] = {
+                        'step': max_steps,
+                        'total': max_steps,
+                        'loss': round(loss.item(), 4),
+                        'status': 'done',
+                        'cpu': self.training_progress.get(intent, {}).get('cpu'),
+                        't0': self.training_progress.get(intent, {}).get('t0'),
+                    }
+                    lora_param_count = sum(p.numel() for p in lora_params)
+                    debug(
+                        f"train: {intent} loRA done, loss={loss.item():.4f} lora_params={lora_param_count}"
+                    )
+                    print(
+                        f"  [*] LoRA-trained {intent} ready ({lora_param_count:,} adapter params)"
+                    )
 
-            self.training_progress[intent] = {
-                'step': cfg.max_steps, 'total': cfg.max_steps,
-                'loss': round(loss.item(), 4), 'status': 'saving',
-                'cpu': self.training_progress.get(intent, {}).get('cpu'),
-                't0': self.training_progress.get(intent, {}).get('t0'),
-            }
+            else:
+                # ════════════════════════════════════════════════════
+                # ORIGINAL PATH: full model from scratch
+                # ════════════════════════════════════════════════════
+                from tabula_rasa.bpe_tokenizer import BPETokenizer
+                from tabula_rasa.config import Config
 
-            model.eval()
+                print(f"  [*] Auto-training {intent} specialist ({len(pairs)} pairs)...")
 
-            # Save
-            save_dir = Path(f"specialists/{intent}")
-            save_dir.mkdir(parents=True, exist_ok=True)
-            torch.save({
-                'step': cfg.max_steps,
-                'model_state_dict': model.state_dict(),
-                'loss': loss.item(),
-                'model_config': {
-                    'd_model': cfg.d_model,
-                    'n_layers': cfg.n_layers,
-                    'n_heads': cfg.n_heads,
-                    'd_ff': cfg.d_ff,
-                    'max_seq_len': cfg.max_seq_len,
-                    'level': self.skill_levels.get(intent, 0),
-                },
-            }, save_dir / 'best.pt')
-            tok.save(str(save_dir / 'tokenizer.json'))
+                tok = BPETokenizer()
+                texts = []
+                for q, a in pairs:
+                    texts.append(f"{q}=")
+                    texts.append(a)
+                tok.learn_bpe_from_texts(texts, num_merges=50, verbose=False)
+                print(f"  [*] BPE vocab: {tok.vocab_size} tokens")
 
-            # Register and load — preserve original ops for detect_skill
-            original_ops = SKILL_REGISTRY.get(intent, {}).get('ops', [])
-            SKILL_REGISTRY[intent] = {
-                'ops': original_ops,
-                'description': f'Auto-trained {intent} specialist',
-                'status': 'ready',
-                'dir': f'specialists/{intent}',
-            }
-            self.models[intent] = model
-            self.tokenizers[intent] = tok
-            self.training_progress[intent] = {
-                'step': cfg.max_steps, 'total': cfg.max_steps,
-                'loss': round(loss.item(), 4), 'status': 'done',
-                'cpu': self.training_progress.get(intent, {}).get('cpu'),
-                't0': self.training_progress.get(intent, {}).get('t0'),
-            }
-            params = count_parameters(model)
-            debug(f"train: {intent} done, loss={loss.item():.4f} params={params}")
-            print(f"  [*] Auto-trained {intent} specialist ready ({params:,} params)")
+                cfg = Config()
+                cfg.d_model = _sc.get('d_model', 64)
+                cfg.n_layers = _sc.get('n_layers', 3)
+                cfg.n_heads = _sc.get('n_heads', 4)
+                cfg.d_ff = _sc.get('d_ff', 128)
+                cfg.vocab_size = tok.vocab_size
+                cfg.max_seq_len = _sc.get('max_seq', 128)
+                cfg.batch_size = len(pairs)
+                cfg.max_steps = max_steps
+                cfg.learning_rate = learning_rate
+                cfg.use_reversed = False
+                cfg.use_loss_masking = True
+
+                tok.max_seq_len = cfg.max_seq_len
+                model = MathTransformer(cfg)
+                opt = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
+
+                xs, ys = [], []
+                for q, a in pairs:
+                    text = f"{q}={a}"
+                    ids = tok.encode(text, add_special_tokens=True)
+                    ids = (ids + [tok.pad_id] * cfg.max_seq_len)[:cfg.max_seq_len]
+                    xs.append(torch.tensor(ids[:-1]))
+                    ys.append(torch.tensor(ids[1:]))
+
+                x = torch.stack(xs)
+                y = torch.stack(ys)
+                dataset = torch.utils.data.TensorDataset(x, y)
+                loader = torch.utils.data.DataLoader(
+                    dataset, batch_size=min(8, len(pairs)), shuffle=True
+                )
+
+                model.train()
+                for step in range(max_steps):
+                    for bx, by in loader:
+                        opt.zero_grad()
+                        _, loss, _ = model(bx, by)
+                        loss.backward()
+                        opt.step()
+                    if (step + 1) % 25 == 0 or step == 0:
+                        p = self.training_progress.get(intent, {})
+                        self.training_progress[intent] = {
+                            'step': step + 1,
+                            'total': max_steps,
+                            'loss': round(loss.item(), 4),
+                            'status': 'training',
+                            'cpu': p.get('cpu'),
+                            't0': p.get('t0'),
+                        }
+                        print(
+                            f"  [*] {intent} step {step+1}/{max_steps}, loss={loss.item():.4f}"
+                        )
+
+                model.eval()
+
+                save_dir = Path(f"specialists/{intent}")
+                save_dir.mkdir(parents=True, exist_ok=True)
+                torch.save(
+                    {
+                        'step': max_steps,
+                        'model_state_dict': model.state_dict(),
+                        'loss': loss.item(),
+                        'model_config': {
+                            'd_model': cfg.d_model,
+                            'n_layers': cfg.n_layers,
+                            'n_heads': cfg.n_heads,
+                            'd_ff': cfg.d_ff,
+                            'max_seq_len': cfg.max_seq_len,
+                            'level': self.skill_levels.get(intent, 0),
+                        },
+                    },
+                    save_dir / 'best.pt',
+                )
+                tok.save(str(save_dir / 'tokenizer.json'))
+
+                original_ops = SKILL_REGISTRY.get(intent, {}).get('ops', [])
+                SKILL_REGISTRY[intent] = {
+                    'ops': original_ops,
+                    'description': f'Auto-trained {intent} specialist',
+                    'status': 'ready',
+                    'dir': f'specialists/{intent}',
+                }
+                self.models[intent] = model
+                self.tokenizers[intent] = tok
+                self.training_progress[intent] = {
+                    'step': max_steps,
+                    'total': max_steps,
+                    'loss': round(loss.item(), 4),
+                    'status': 'done',
+                    'cpu': self.training_progress.get(intent, {}).get('cpu'),
+                    't0': self.training_progress.get(intent, {}).get('t0'),
+                }
+                params = count_parameters(model)
+                debug(f"train: {intent} done, loss={loss.item():.4f} params={params}")
+                print(f"  [*] Auto-trained {intent} specialist ready ({params:,} params)")
+
         except Exception as e:
             import traceback
             with open('auto_train_errors.log', 'a') as f:
