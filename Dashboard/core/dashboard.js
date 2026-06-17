@@ -2,7 +2,7 @@
 // Include via: <script src="../core/dashboard.js"></script>
 
 var API = window.location.protocol + '//' + window.location.hostname + ':' + window.location.port;
-var API2 = API;
+var API2 = 'http://localhost:8004';  // Router (conversational AI, skills, datasets)
 
 function $(id) { return document.getElementById(id); }
 
