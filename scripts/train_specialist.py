@@ -1242,14 +1242,14 @@ def train_specialist(
                 n_eval = max(25, cfg.eval_samples // 4) if fast_eval else cfg.eval_samples
                 # Tight token budget per digit count
                 if cfg.cot_scratchpad and op in ("add", "sub"):
-                    eval_max_tokens = cfg.max_digits * 8 + 8
+                    eval_max_tokens = current_max_digits * 8 + 8
                 elif cfg.use_scratchpad and op in ("add", "sub"):
-                    eval_max_tokens = cfg.max_digits * 2 + 4
+                    eval_max_tokens = current_max_digits * 2 + 4
                 else:
-                    eval_max_tokens = cfg.max_digits + 3
+                    eval_max_tokens = current_max_digits + 3
                 cfg_eval_max = cfg.eval_max_tokens
                 cfg.eval_max_tokens = eval_max_tokens
-                acc = evaluate(model, tok, cfg, op, num=n_eval)
+                acc = evaluate(model, tok, cfg, op, num=n_eval, max_digits=current_max_digits)
                 cfg.eval_max_tokens = cfg_eval_max
                 elapsed = time.time() - t_start
 
