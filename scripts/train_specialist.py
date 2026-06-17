@@ -712,11 +712,13 @@ def train_specialist(
     use_progressive_scratchpad=False,
     progressive_interval=500,
     use_moe=False,
+    max_digits=0,
+    pos_encoding="",
 ):
-    """Train a specialist for one arithmetic operation.
+    """Train a specialist model for arithmetic operations.
 
     Args:
-        op: Operation (add, sub, mul, div)
+        op: Operation name (add/sub/mul/div).
         steps: Max training steps (0=use Config default)
         batch_size: Batch size (0=use Config default)
         lr: Learning rate (0=use Config default)
@@ -727,6 +729,8 @@ def train_specialist(
         test_hard: Enable hard eval (max_digits+1, tests generalization)
         use_lora: Enable LoRA fine-tuning (freezes base, trains adapters)
         lora_rank: LoRA rank (default 8)
+        max_digits: Override max digit length (0=config default)
+        pos_encoding: Override position encoding (empty=config default)
     """
     global _INTERRUPTED
     _INTERRUPTED = False
@@ -736,6 +740,16 @@ def train_specialist(
     print(f'{"="*60}')
 
     cfg = Config()
+
+    # Position encoding override
+    if pos_encoding:
+        cfg.pos_encoding = pos_encoding
+        print(f"  *** Position encoding: {pos_encoding} ***")
+
+    # Max digits override (single-phase curriculum)
+    if max_digits > 0:
+        cfg.curriculum_phases = [(cfg.max_steps, max_digits)]
+        print(f"  *** Max digits: {max_digits} (single-phase curriculum) ***")
 
     # Quick mode overrides
     if quick:
@@ -1763,6 +1777,16 @@ Examples:
         default=0,
         help="Gradient accumulation steps (0=config default, default: 1)",
     )
+    parser.add_argument("--seed", type=int, default=0, help="Random seed (0=random)")
+    parser.add_argument(
+        "--max-digits", type=int, default=0,
+        help="Override max digit length (0=config default)"
+    )
+    parser.add_argument(
+        "--pos-encoding", type=str, default="",
+        choices=["", "rope", "abacus", "alibi_arithmetic", "none"],
+        help="Position encoding mode (empty=config default)"
+    )
     parser.add_argument(
         "--lora",
         action="store_true",
@@ -2054,4 +2078,6 @@ Examples:
         use_progressive_scratchpad=args.progressive,
         progressive_interval=args.progressive_interval,
         use_moe=args.moe,
+        max_digits=args.max_digits,
+        pos_encoding=args.pos_encoding,
     )
