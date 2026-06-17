@@ -14,6 +14,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 from socketserver import ThreadingMixIn
 
+# Ensure src/ is on path before importing tabula_rasa package
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 DEBUG_LOG = Path("debug_tabula.log")
 
 def debug(msg):
@@ -239,6 +243,7 @@ class SkillManager:
         self.training_queue = {}  # intent -> True if training in progress
         self.training_progress = {}  # intent -> {step, total, loss, status}
         self.skill_levels = {}  # intent -> level (auto-increments on retrain)
+        self._query_count = {}  # intent -> query counter for auto-retrain
         self.pending_question = None  # {prompt, intent, timestamp} — last unanswered question
         self.last_answer = None  # {answer, prompt, skill} — last answer given
         # Shared base model + LoRA adapters (for USE_LORA_FOR_CHAT mode)
@@ -768,6 +773,15 @@ class SkillManager:
                 if is_novel and intent not in self.training_queue:
                     debug(f"ask: novel question for known {intent}, appending & retraining")
                     self._auto_train_intent(intent, prompt)
+                elif not is_novel and intent not in self.training_queue:
+                    # Retrain counter for known questions
+                    self._query_count[intent] = self._query_count.get(intent, 0) + 1
+                    if self._query_count[intent] >= 3:
+                        self._query_count[intent] = 0
+                        level = self.skill_levels.get(intent, 0)
+                        if level < 5:
+                            debug(f"ask: retraining {intent} (level {level} -> {level+1})")
+                            self._auto_train_intent(intent, prompt, retrain=True)
                 if score >= 0.3:
                     debug(f"ask: retrieval {intent} match={score:.2f} -> {ans_ret!r}")
                     return {
@@ -809,6 +823,22 @@ class SkillManager:
                 }
 
             if intent in self.training_queue:
+                # Try retrieval even during training — knowledge base answers are instant
+                if intent != prompt:
+                    try:
+                        ans_ret, meta_ret, score = self._retrieve_answer(intent, prompt)
+                        if score >= 0.3:
+                            debug(f"ask: retrieval {intent} during training match={score:.2f}")
+                            return {
+                                'prompt': prompt, 'answer': ans_ret, 'knows': True,
+                                'skill': intent,
+                                'skill_description': SKILL_REGISTRY.get(intent, {}).get('description', ''),
+                                'time_ms': 0, 'status': 'answered',
+                                'confidence': 100.0, 'is_confident': True, 'message': None,
+                                'training_info': meta_ret,
+                            }
+                    except Exception:
+                        pass
                 return {
                     'answer': None,
                     'knows': False,
@@ -849,8 +879,19 @@ class SkillManager:
                 if is_novel and skill not in self.training_queue:
                     debug(f"ask: novel question for known {skill}, appending & retraining")
                     self._auto_train_intent(skill, prompt)
+                elif not is_novel and skill not in self.training_queue:
+                    # Auto-retrain: every 3 familiar questions, bump level
+                    self._query_count[skill] = self._query_count.get(skill, 0) + 1
+                    if self._query_count[skill] >= 3:
+                        self._query_count[skill] = 0
+                        level = self.skill_levels.get(skill, 0)
+                        if level < 5:
+                            debug(f"ask: retraining {skill} (level {level} -> {level+1})")
+                            self._auto_train_intent(skill, prompt, retrain=True)
+                            debug(f"ask: after retrain call, queue={skill in self.training_queue}")
                 elif skill not in self.models and skill not in self.training_queue:
-                    self._auto_train_intent(skill, prompt)
+                    # Load model failed (e.g. LoRA adapter) — requeue with retrain if known
+                    self._auto_train_intent(skill, prompt, retrain=not is_novel)
                 return {
                     'prompt': prompt, 'answer': ans_ret, 'knows': True,
                     'skill': skill,

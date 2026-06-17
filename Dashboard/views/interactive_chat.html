@@ -128,9 +128,9 @@
     </div>
 
     <script>
-    var API2 = (window.location.port === '8000' || window.location.port === '8002')
-        ? 'http://localhost:8002' : window.location.protocol + '//' + window.location.hostname + ':' + window.location.port;
-    var API1 = API2;
+    var ROUTER_PORT = 8004;
+    var API2 = window.location.protocol + '//' + window.location.hostname + ':' + ROUTER_PORT;
+    var API1 = window.location.protocol + '//' + window.location.hostname + ':' + window.location.port;
     var autoTeach = false, busy = false, totalCorrections = 0;
     var currentSessionId = null;
 
