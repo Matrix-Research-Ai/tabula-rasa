@@ -52,6 +52,10 @@ def _forward_wrapper(
         # We MUST call the embedding layer so Captum's hook can intercept it!
         x = model.token_embedding(input_ids)
         
+        # Ensure float — Captum hooks can produce non-float intermediates
+        if x.dtype != torch.float32 and x.dtype != torch.float64:
+            x = x.float()
+        
         # Pass through each transformer block
         for layer in model.layers:
             x, _ = layer(x)
