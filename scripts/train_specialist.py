@@ -1243,6 +1243,8 @@ def train_specialist(
                 # Tight token budget per digit count
                 if cfg.cot_scratchpad and op in ("add", "sub"):
                     eval_max_tokens = current_max_digits * 8 + 8
+                elif cfg.use_scratchpad and op == "mul":
+                    eval_max_tokens = current_max_digits * 12 + 16
                 elif cfg.use_scratchpad and op in ("add", "sub"):
                     eval_max_tokens = current_max_digits * 2 + 4
                 else:
