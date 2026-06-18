@@ -52,15 +52,16 @@ def run_one(
     result = subprocess.run(cmd, cwd=str(PROJECT), capture_output=True, text=True, timeout=7200)
     elapsed = time.time() - t0
 
-    # Parse training accuracy
+    # Parse training accuracy (last eval line)
     train_acc = 0.0
     for line in (result.stdout or '').splitlines():
-        if 'Eval:' in line and '%' in line:
-            parts = line.split()
-            for p in parts:
-                if p.endswith('%'):
+        if 'Eval' in line and '%' in line and 'step' in line:
+            # Line format: "    Eval step 500: 76.0% (best: 76.0%) | ..."
+            for p in line.split():
+                if p.endswith('%') and p.rstrip('%').replace('.', '').isdigit():
                     try:
                         train_acc = float(p.rstrip('%'))
+                        break
                     except ValueError:
                         pass
 
