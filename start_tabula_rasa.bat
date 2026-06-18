@@ -17,21 +17,24 @@ ping -n 3 127.0.0.1 >nul
 echo  [+] Ports 8000,8002 cleared.
 echo.
 
-:: ─── Start Tabula Rasa AI ───
+:: ─── Start Dashboard (port 8000) ───
+echo [*] Starting Dashboard (port 8000)...
+start "Dashboard (8000)" /MIN cmd /c "title Dashboard (8000) && python scripts/api_server.py"
+echo  [+] Dashboard started.
+
+:: ─── Start Tabula Rasa AI (port 8002) ───
 echo [*] Starting Tabula Rasa AI (port 8002)...
-echo  - Dashboard: http://localhost:8000
-echo  - AI:        http://localhost:8002
+start "Tabula Rasa AI (8002)" /MIN cmd /c "title Tabula Rasa AI (8002) && tabula-rasa serve"
+echo  [+] AI server started.
 echo.
-start "Tabula Rasa AI" /MIN cmd /c "title Tabula Rasa AI && tabula-rasa serve"
 
 :: ─── Wait ───
-echo [*] Waiting for server to start...
+echo [*] Waiting for servers to start...
 ping -n 16 127.0.0.1 >nul
 echo.
 
 :: ─── Open dashboard ───
-echo [*] Opening dashboard in browser...
-start http://localhost:8000
+start http://localhost:8000/
 echo  [+] Dashboard opened.
 echo.
 
@@ -45,6 +48,6 @@ echo  ║  pip install tabula-rasa-ai                ║
 echo  ║  tabula-rasa train add --quick             ║
 echo  ╚══════════════════════════════════════════════╝
 echo.
-echo [*] Close the server window or press Ctrl+C to stop.
+echo [*] Close server windows or press Ctrl+C to stop.
 echo.
 pause >nul
